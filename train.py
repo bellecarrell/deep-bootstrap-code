@@ -22,13 +22,13 @@ from torch.utils.data import TensorDataset
 import torch.optim as optim
 from torch.optim import lr_scheduler
 
-from .utils import AverageMeter
+from inftrain.utils import AverageMeter
 from common.datasets import load_cifar, TransformingTensorDataset, get_cifar_data_aug
 from common.datasets import load_cifar550, load_svhn_all, load_svhn, load_cifar5m
 import common.models32 as models
-from .utils import get_model32, get_optimizer, get_scheduler
+from inftrain.utils import get_model32, get_optimizer, get_scheduler
 
-from common.logging import VanillaLogger
+#from common.logging import VanillaLogger
 
 parser = argparse.ArgumentParser(description='vanilla training')
 parser.add_argument('--proj', default='test-soft', type=str, help='project name')
@@ -96,7 +96,8 @@ def predict(loader, model):
     predsAll = []
     with torch.no_grad():
         for i, (images, target) in enumerate(tqdm(loader)):
-            images, target = cuda_transfer(images, target)
+            # todo: add back for cuda
+            #images, target = cuda_transfer(images, target)
             output = model(images)
 
             preds = output.argmax(1).long().cpu()
@@ -117,7 +118,9 @@ def test_all(loader, model, criterion):
     with torch.no_grad():
         for i, (images, target) in enumerate(loader):
             bs = len(images)
-            images, target = cuda_transfer(images, target)
+
+            # todo: add back for cuda
+            #images, target = cuda_transfer(images, target)
             output = model(images)
             loss = criterion(output, target)
 
@@ -226,10 +229,12 @@ def main():
     #load the model
     model = get_model32(args, args.arch, half=args.half, nclasses=10, pretrained_path=args.pretrained)
     # model = torch.nn.DataParallel(model).cuda()
-    model.cuda()
+    # todo: check if on gpu?
+    #model.cuda()
 
     # init logging
-    logger = VanillaLogger(args, wandb, hash=True)
+    # todo: log local?
+    #logger = VanillaLogger(args, wandb, hash=True)
 
     print('Loading datasets...')
     (X_tr, Y_tr, X_te, Y_te), preproc = get_dataset(args.dataset)
@@ -275,7 +280,8 @@ def main():
     n_tot = 0
     for i, (images, target) in enumerate(recycle(tr_loader)):
         model.train()
-        images, target = cuda_transfer(images, target)
+        # todo: add back for cuda
+        #images, target = cuda_transfer(images, target)
         output = model(images)
         loss = criterion(output, target)
 
@@ -314,8 +320,8 @@ def main():
                 print(f'Batch {i}.\t lr: {lr:.3f}\t Test Error: {d["Test Error"]:.3f}')
 
             
-            logger.log_scalars(d)
-            logger.flush()
+            #logger.log_scalars(d)
+            #logger.flush()
 
 
         if (i+1) % args.batches_per_lr_step == 0:
@@ -331,15 +337,15 @@ def main():
             break; # break if small train loss
 
     ## Final logging
-    logger.save_model(model)
+    #logger.save_model(model)
 
     summary = {}
     summary.update({ f'Final Test {k}' : v for k, v in test_all(te_loader, model, criterion).items()})
     summary.update({ f'Final Train {k}' : v for k, v in test_all(tr_loader, model, criterion).items()})
     summary.update({ f'Final CF10 {k}' : v for k, v in test_all(cifar_test, model, criterion).items()})
 
-    logger.log_summary(summary)
-    logger.flush()
+    #logger.log_summary(summary)
+    #logger.flush()
 
 
 if __name__ == '__main__':

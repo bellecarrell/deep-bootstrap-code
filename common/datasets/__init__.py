@@ -72,7 +72,8 @@ def load_cifar5m():
     X_tr = np.empty((5*npart, 32, 32, 3), dtype=np.uint8)
     Ys = []
     print('Loading CIFAR 5mil...')
-    for i in range(5):
+    #todo: return to range(5)
+    for i in range(1):
         z = np.load(pjoin(local_dir, f'part{i}.npz'))
         X_tr[i*npart: (i+1)*npart] = z['X']
         Ys.append(torch.tensor(z['Y']).long())
