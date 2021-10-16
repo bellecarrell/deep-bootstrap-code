@@ -5,7 +5,7 @@ from torch.utils.tensorboard import SummaryWriter
 import string
 import subprocess
 
-from common import gsave, gload
+#from common import gsave, gload
 from common import save_model as _save_model
 
 
@@ -57,7 +57,8 @@ class VanillaLogger():
         self.scalars_log = []
 
     def save(self, obj, ext):
-        gsave(obj, f'{self.gcs_logdir}/{ext}')
+        #gsave(obj, f'{self.gcs_logdir}/{ext}')
+        pass
 
     def save_model(self, model):
         gcs_path = f'{self.gcs_modeldir}/model.pt'
@@ -114,7 +115,8 @@ class VanillaTBLogger():
         self.scalars_log = []
 
     def save(self, obj, ext):
-        gsave(obj, f'{self.gcs_logdir}/{ext}')
+        #gsave(obj, f'{self.gcs_logdir}/{ext}')
+        pass
 
     def log_root(self, D : dict):
         for k, v in D.items():

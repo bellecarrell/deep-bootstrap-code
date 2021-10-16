@@ -66,7 +66,8 @@ def load_cifar5m():
 
     nte = 10000 # num. of test samples to use (max 1e6)
     print('Downloading CIFAR 5mil...')
-    local_dir = download_dir('gs://gresearch/cifar5m') # download all 6 dataset files
+    #local_dir = download_dir('gs://gresearch/cifar5m') # download all 6 dataset files
+    local_dir = '/expanse/lustre/projects/csd697/nmallina/data/cifar-5m'
 
     npart = 1000448
     X_tr = np.empty((5*npart, 32, 32, 3), dtype=np.uint8)

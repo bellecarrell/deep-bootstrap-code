@@ -8,9 +8,10 @@ from tqdm.auto import tqdm
 from .datasets import dload, download_dir
 import subprocess
 
-import gcsfs
+#import gcsfs
 import pickle
 
+'''
 def gopen(gsname, mode='rb'):
     fs = gcsfs.GCSFileSystem()
     if gsname.startswith('gs://'):
@@ -29,6 +30,7 @@ def gload(gsname):
 def glob(gspath):
     fs = gcsfs.GCSFileSystem()
     return fs.glob(gspath)
+'''
 
 def save_model(model, gcs_path):
     def unwrap_model(model): # unwraps DataParallel, etc
