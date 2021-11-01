@@ -13,4 +13,9 @@ Adapting codebase to use a local filesystem for logging and model storage, etc.
 Run command: `python -m inftrain.train --proj <wandb_proj_name>`
 
 CIFAR-5m dataset in `*.npz` format is ~17.2GB so I recommend taking a machine with 32-64GB memory,
-depending on what batch size and network you want to run with. 
+depending on what batch size and network you want to run with.
+
+Newly added args:
+```
+--save_model_step {freq}: how frequent (in batches) to save intermediate models
+```

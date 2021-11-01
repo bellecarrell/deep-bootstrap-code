@@ -37,6 +37,7 @@ parser.add_argument('--nsamps', default=50000, type=int, help='num. train sample
 parser.add_argument('--batchsize', default=128, type=int)
 parser.add_argument('--k', default=64, type=int, help="log every k batches", dest='k')
 parser.add_argument('--iid', default=False, action='store_true', help='simulate infinite samples (fresh samples each batch)')
+parser.add_argument('--save_model_step', default=-1, type=int, help='step frequency for saving intermediate models')
 
 # parser.add_argument('--arch', metavar='ARCH', default='mlp[16384,16384,512]')
 parser.add_argument('--arch', metavar='ARCH', default='preresnet18')
@@ -317,6 +318,8 @@ def main():
             logger.log_scalars(d)
             logger.flush()
 
+        if args.save_model_step > 0 and (i+1) % args.save_model_step == 0:
+            logger.save_model_step(i, model)
 
         if (i+1) % args.batches_per_lr_step == 0:
             scheduler.step()
