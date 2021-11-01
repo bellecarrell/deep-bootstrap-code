@@ -1,4 +1,5 @@
 import os
+from common.models.small.resnet import test
 import wandb
 
 import argparse
@@ -12,6 +13,7 @@ import torch.nn.functional as F
 import torch.nn.parallel
 import torch.optim
 import torch.utils.data
+import torchvision
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 import numpy as np
@@ -28,7 +30,7 @@ from common.datasets import load_cifar550, load_svhn_all, load_svhn, load_cifar5
 import common.models32 as models
 from inftrain.utils import get_model32, get_optimizer, get_scheduler
 
-#from common.logging import VanillaLogger
+from common.logging import VanillaLocalLogger
 
 parser = argparse.ArgumentParser(description='vanilla training')
 parser.add_argument('--proj', default='test-soft', type=str, help='project name')
@@ -97,7 +99,7 @@ def predict(loader, model):
     with torch.no_grad():
         for i, (images, target) in enumerate(tqdm(loader)):
             # todo: add back for cuda
-            #images, target = cuda_transfer(images, target)
+            images, target = cuda_transfer(images, target)
             output = model(images)
 
             preds = output.argmax(1).long().cpu()
@@ -120,7 +122,7 @@ def test_all(loader, model, criterion):
             bs = len(images)
 
             # todo: add back for cuda
-            #images, target = cuda_transfer(images, target)
+            images, target = cuda_transfer(images, target)
             output = model(images)
             loss = criterion(output, target)
 
@@ -228,13 +230,13 @@ def main():
 
     #load the model
     model = get_model32(args, args.arch, half=args.half, nclasses=10, pretrained_path=args.pretrained)
-    # model = torch.nn.DataParallel(model).cuda()
+    model = torch.nn.DataParallel(model).cuda()
     # todo: check if on gpu?
-    #model.cuda()
+    model.cuda()
 
     # init logging
     # todo: log local?
-    #logger = VanillaLogger(args, wandb, hash=True)
+    logger = VanillaLocalLogger(args, proj_name='prelim_ood_test')
 
     print('Loading datasets...')
     (X_tr, Y_tr, X_te, Y_te), preproc = get_dataset(args.dataset)
@@ -259,6 +261,16 @@ def main():
     cifar_test = make_loader(*(load_cifar()[2:])) # original cifar-10 test set
     print('Done loading.')
     
+    # begin OOD dataset
+    transform = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize((125.3/255, 123.0/255, 113.9/255), (63.0/255, 62.1/255.0, 66.7/255.0)),
+    ])
+    testsetout = torchvision.datasets.ImageFolder("data/Imagenet", transform=transform)
+    testloaderOut = torch.utils.data.DataLoader(testsetout, batch_size=1,
+                                     shuffle=False, num_workers=2)
+
+    # end OOD dataset
 
     # batches / lr computations
     batches_per_epoch = int(np.floor(args.nsamps / args.batchsize))
@@ -280,8 +292,10 @@ def main():
     n_tot = 0
     for i, (images, target) in enumerate(recycle(tr_loader)):
         model.train()
+
+
         # todo: add back for cuda
-        #images, target = cuda_transfer(images, target)
+        images, target = cuda_transfer(images, target)
         output = model(images)
         loss = criterion(output, target)
 
@@ -308,8 +322,10 @@ def main():
 
             test_m = test_all(te_loader, model, criterion)
             testcf_m = test_all(cifar_test, model, criterion)
+            test_ood = test_all(testloaderOut, model, criterion)
             d.update({ f'Test {k}' : v for k, v in test_m.items()})
             d.update({ f'CF10 {k}' : v for k, v in testcf_m.items()})
+            d.update({ f'Out {k}' : v for k, v in test_ood.items()})
 
             if not args.iid:
                 train_m = test_all(tr_loader, model, criterion)
@@ -318,6 +334,9 @@ def main():
                 print(f'Batch {i}.\t lr: {lr:.3f}\t Train Loss: {d["Train Loss"]:.4f}\t Train Error: {d["Train Error"]:.3f}\t Test Error: {d["Test Error"]:.3f}')
             else:
                 print(f'Batch {i}.\t lr: {lr:.3f}\t Test Error: {d["Test Error"]:.3f}')
+
+            #begin mod
+            print(f'Batch {i}.\t lr: {lr:.3f}\t Out Error: {d["Out Error"]:.3f}')
 
             
             #logger.log_scalars(d)
@@ -337,15 +356,17 @@ def main():
             break; # break if small train loss
 
     ## Final logging
-    #logger.save_model(model)
+    logger.save_model(model)
 
     summary = {}
     summary.update({ f'Final Test {k}' : v for k, v in test_all(te_loader, model, criterion).items()})
     summary.update({ f'Final Train {k}' : v for k, v in test_all(tr_loader, model, criterion).items()})
     summary.update({ f'Final CF10 {k}' : v for k, v in test_all(cifar_test, model, criterion).items()})
 
-    #logger.log_summary(summary)
+    logger.log_summary(summary)
     #logger.flush()
+
+    
 
 
 if __name__ == '__main__':
