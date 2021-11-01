@@ -4,6 +4,8 @@ import numpy as np
 from torch.utils.tensorboard import SummaryWriter
 import string
 import subprocess
+import pickle
+import os
 
 from common import gsave, gload
 from common import save_model as _save_model
@@ -140,6 +142,67 @@ class VanillaTBLogger():
 
     def log_final(self, D : dict):
         prefix = f'final'
+        for k, v in D.items():
+            self.save(v, f'{prefix}/{k}')
+    
+    def flush(self):
+        ''' saves the result of all log_scalar calls '''
+        self.save(self.scalars_log, 'scalars')
+        self.tbwriter.flush()
+
+class VanillaLocalLogger():
+    def __init__(self, args, proj_name, local_root='/home/annabelle/workplace/deep-bootstrap-code', comment=""):
+        self.run_id = get_guid()
+        args.run_id = self.run_id
+        self.local_logdir = f'{local_root}/{proj_name}/{self.run_id}'
+        self.local_modeldir = f'{local_root}/models/{proj_name}/{self.run_id}'
+        print("Local Logdir:", self.local_logdir)
+        os.makedirs(self.local_logdir)
+        os.makedirs(self.local_modeldir)
+        self.save(vars(args), 'config')
+
+        self._step = 0
+        self.scalars_log = []
+
+    def save_model(self, model):
+        gcs_path = f'{self.local_modeldir}/model.pt'
+        _save_model(model, gcs_path)
+
+    def save_model_step(self, step, model):
+        gcs_path = f'{self.local_modeldir}/step{step:06}/model.pt'
+        _save_model(model, gcs_path)
+
+
+    def save(self, obj, ext):
+        fname = f'{self.local_logdir}/{ext}'
+        with open(fname, 'ab+') as f:
+            pickle.dump(obj,f)
+
+    def log_root(self, D : dict):
+        for k, v in D.items():
+            self.save(v, k)
+
+    def log_scalars(self, D : dict, step=None):
+        if step is None:
+            step = self._step
+            self._step += 1
+
+        self.scalars_log.append(D)
+        for k, v in D.items():
+            self.tbwriter.add_scalar(k, v, global_step = step)
+        
+    def log_summary(self, D):
+        self.save(D, 'summary')
+
+    def log_step(self, step, D : dict):
+        prefix = f'steps/step{step:06}'
+        for k, v in D.items():
+            self.save(v, f'{prefix}/{k}')
+
+    def log_final(self, D : dict):
+        prefix = f'final'
+        if not os.path.exists(f'{self.local_logdir}/final'):
+            os.makedirs(f'{self.local_logdir}/final')
         for k, v in D.items():
             self.save(v, f'{prefix}/{k}')
     
