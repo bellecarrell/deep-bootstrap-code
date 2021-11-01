@@ -48,12 +48,21 @@ class VanillaLogger():
         self.expanse_logdir = f'{expanse_root}/logs/{proj_name}/{self.run_id}'
         self.expanse_modeldir = f'{expanse_root}/models/{proj_name}/{self.run_id}'
 
+        if not os.path.exists(self.expanse_logdir):
+            os.makedirs(self.expanse_logdir, exist_ok=True)
+        if not os.path.exists(self.expanse_modeldir):
+            os.makedirs(self.expanse_modeldir, exist_ok=True)
+
         print("Expanse Logdir:", self.expanse_logdir)
         self.save(vars(args), 'config')
 
         self._step = 0
-        comment = _gen_comment(args)
-        self.tbwriter = SummaryWriter(log_dir=f'{expanse_root}/runs/{proj_name}/{self.run_id}_{comment}', flush_secs=30)
+        # TODO:
+        # gen_comment creates a long parameter string that is too long to use as a filename on local FS, for now we
+        # will comment it out, eventually should think of a better way to handle this
+        # comment = _gen_comment(args)
+        # self.tbwriter = SummaryWriter(log_dir=f'{expanse_root}/runs/{proj_name}/{self.run_id}_{comment}', flush_secs=30)
+        self.tbwriter = SummaryWriter(log_dir=f'{expanse_root}/runs/{proj_name}/{self.run_id}', flush_secs=30)
         self.scalars_log = []
 
     def save(self, obj, ext):
