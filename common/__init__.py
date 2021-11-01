@@ -35,8 +35,8 @@ def save_model(model, gcs_path):
         return model.module if hasattr(model, 'module') else model
     local_path = './model.pt'
     torch.save(unwrap_model(model).state_dict(), local_path)
-    subprocess.call(f'gsutil -m -o GSUtil:parallel_composite_upload_threshold=150M cp {local_path} {gcs_path}', shell=True)
-    subprocess.call(f'rm {local_path}', shell=True)
+    #subprocess.call(f'gsutil -m -o GSUtil:parallel_composite_upload_threshold=150M cp {local_path} {gcs_path}', shell=True)
+    #subprocess.call(f'rm {local_path}', shell=True)
 
 def load_state_dict(model, gcs_path, crc=False):
     local_path = dload(gcs_path, overwrite=True, crc=crc)
