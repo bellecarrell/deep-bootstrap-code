@@ -5,7 +5,7 @@ from torch.utils.tensorboard import SummaryWriter
 import string
 import subprocess
 
-#from common import gsave, gload
+from common import gsave, gload
 from common import save_model as _save_model
 
 
@@ -36,8 +36,8 @@ class VanillaLogger():
     '''
         Logs to GCS, wandb (internal).
     '''
-    def __init__(self, args, wandb, gcs_root='gs://gpreetum', hash=False):
-        
+    def __init__(self, args, wandb, expanse_root='/expanse/lustre/projects/csd697/nmallina/bootstrap', hash=False):
+
         if hash: args.hash = _run_hash(args) # for easy run-grouping
         self.wandb = wandb
         proj_name = args.proj
@@ -45,28 +45,27 @@ class VanillaLogger():
         self.run_id = wandb.run.id
         args.run_id = self.run_id
 
-        self.gcs_logdir = f'{gcs_root}/logs/{proj_name}/{self.run_id}'
-        self.gcs_modeldir = f'{gcs_root}/models/{proj_name}/{self.run_id}'
+        self.expanse_logdir = f'{expanse_root}/logs/{proj_name}/{self.run_id}'
+        self.expanse_modeldir = f'{expanse_root}/models/{proj_name}/{self.run_id}'
 
-        print("GCS Logdir:", self.gcs_logdir)
+        print("Expanse Logdir:", self.expanse_logdir)
         self.save(vars(args), 'config')
 
         self._step = 0
         comment = _gen_comment(args)
-        # self.tbwriter = SummaryWriter(log_dir=f'gs://gpreetum/runs/{proj_name}/{self.run_id}_{comment}', flush_secs=30)
+        self.tbwriter = SummaryWriter(log_dir=f'{expanse_root}/runs/{proj_name}/{self.run_id}_{comment}', flush_secs=30)
         self.scalars_log = []
 
     def save(self, obj, ext):
-        #gsave(obj, f'{self.gcs_logdir}/{ext}')
-        pass
+        gsave(obj, f'{self.expanse_logdir}/{ext}')
 
     def save_model(self, model):
-        gcs_path = f'{self.gcs_modeldir}/model.pt'
-        _save_model(model, gcs_path)
+        expanse_path = f'{self.expanse_modeldir}/model.pt'
+        _save_model(model, expanse_path)
 
     def save_model_step(self, step, model):
-        gcs_path = f'{self.gcs_modeldir}/step{step:06}/model.pt'
-        _save_model(model, gcs_path)
+        expanse_path = f'{self.expanse_modeldir}/step{step:06}/model.pt'
+        _save_model(model, expanse_path)
 
     def log_root(self, D : dict):
         for k, v in D.items():
@@ -79,9 +78,9 @@ class VanillaLogger():
 
         if log_wandb: self.wandb.log(D)
         self.scalars_log.append(D)
-        # for k, v in D.items():
-        #     self.tbwriter.add_scalar(k, v, global_step = step)
-        
+        for k, v in D.items():
+            self.tbwriter.add_scalar(k, v, global_step = step)
+
 
     def log_summary(self, D):
         self.wandb.summary = D
@@ -96,27 +95,26 @@ class VanillaLogger():
         prefix = f'final'
         for k, v in D.items():
             self.save(v, f'{prefix}/{k}')
-    
+
     def flush(self):
         ''' saves the result of all log_scalar calls '''
         self.save(self.scalars_log, 'scalars')
-        # self.tbwriter.flush()
+        self.tbwriter.flush()
 
 class VanillaTBLogger():
-    def __init__(self, args, proj_name, gcs_root='gs://gpreetum/logs', comment=""):
+    def __init__(self, args, proj_name, expanse_root='/expanse/lustre/projects/csd697/nmallina/bootstrap', comment=""):
         self.run_id = get_guid()
         args.run_id = self.run_id
-        self.gcs_logdir = f'{gcs_root}/{proj_name}/{self.run_id}'
-        print("GCS Logdir:", self.gcs_logdir)
+        self.expanse_logdir = f'{expanse_root}/logs/{proj_name}/{self.run_id}'
+        print("GCS Logdir:", self.expanse_logdir)
         self.save(vars(args), 'config')
 
         self._step = 0
-        self.tbwriter = SummaryWriter(log_dir=f'gs://gpreetum/runs/{proj_name}/{self.run_id}_{comment}', flush_secs=10)
+        self.tbwriter = SummaryWriter(log_dir=f'{expanse_root}/runs/{proj_name}/{self.run_id}_{comment}', flush_secs=10)
         self.scalars_log = []
 
     def save(self, obj, ext):
-        #gsave(obj, f'{self.gcs_logdir}/{ext}')
-        pass
+        gsave(obj, f'{self.expanse_logdir}/{ext}')
 
     def log_root(self, D : dict):
         for k, v in D.items():
@@ -130,7 +128,7 @@ class VanillaTBLogger():
         self.scalars_log.append(D)
         for k, v in D.items():
             self.tbwriter.add_scalar(k, v, global_step = step)
-        
+
 
     def log_summary(self, D):
         self.save(D, 'summary')
@@ -144,7 +142,7 @@ class VanillaTBLogger():
         prefix = f'final'
         for k, v in D.items():
             self.save(v, f'{prefix}/{k}')
-    
+
     def flush(self):
         ''' saves the result of all log_scalar calls '''
         self.save(self.scalars_log, 'scalars')

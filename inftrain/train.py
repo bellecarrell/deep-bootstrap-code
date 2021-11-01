@@ -40,7 +40,7 @@ parser.add_argument('--iid', default=False, action='store_true', help='simulate 
 
 # parser.add_argument('--arch', metavar='ARCH', default='mlp[16384,16384,512]')
 parser.add_argument('--arch', metavar='ARCH', default='preresnet18')
-parser.add_argument('--pretrained', type=str, default=None, help='gcs-path to pretrained model state dict (optional)')
+parser.add_argument('--pretrained', type=str, default=None, help='expanse path to pretrained model state dict (optional)')
 parser.add_argument('--width', default=None, type=int, help="architecture width parameter (optional)")
 parser.add_argument('--loss', default='xent', choices=['xent', 'mse'], type=str)
 
@@ -154,7 +154,7 @@ def get_dataset(dataset):
     if dataset == 'cifar5m':
         return load_cifar5m(), uint_transform
 
-    
+
 def add_noise(Y, p: float):
     ''' Adds noise to Y, s.t. the label is wrong w.p. p '''
     num_classes = torch.max(Y).item()+1
@@ -253,7 +253,7 @@ def main():
 
     cifar_test = make_loader(*(load_cifar()[2:])) # original cifar-10 test set
     print('Done loading.')
-    
+
 
     # batches / lr computations
     batches_per_epoch = int(np.floor(args.nsamps / args.batchsize))
@@ -313,7 +313,7 @@ def main():
             else:
                 print(f'Batch {i}.\t lr: {lr:.3f}\t Test Error: {d["Test Error"]:.3f}')
 
-            
+
             logger.log_scalars(d)
             logger.flush()
 
@@ -344,4 +344,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
