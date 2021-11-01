@@ -48,10 +48,9 @@ class VanillaLogger():
         self.expanse_logdir = f'{expanse_root}/logs/{proj_name}/{self.run_id}'
         self.expanse_modeldir = f'{expanse_root}/models/{proj_name}/{self.run_id}'
 
-        if not os.path.exists(self.expanse_logdir):
-            os.makedirs(self.expanse_logdir, exist_ok=True)
-        if not os.path.exists(self.expanse_modeldir):
-            os.makedirs(self.expanse_modeldir, exist_ok=True)
+        # run_id is always uniquely generated so there are no problems in overwriting
+        os.makedirs(self.expanse_logdir)
+        os.makedirs(self.expanse_modeldir)
 
         print("Expanse Logdir:", self.expanse_logdir)
         self.save(vars(args), 'config')
@@ -73,6 +72,7 @@ class VanillaLogger():
         _save_model(model, expanse_path)
 
     def save_model_step(self, step, model):
+        os.makedirs(f'{self.expanse_modeldir}/step{step:06}')
         expanse_path = f'{self.expanse_modeldir}/step{step:06}/model.pt'
         _save_model(model, expanse_path)
 

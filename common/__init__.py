@@ -26,7 +26,14 @@ def glob(filepath):
 def save_model(model, filepath):
     def unwrap_model(model): # unwraps DataParallel, etc
         return model.module if hasattr(model, 'module') else model
-    local_path = f'{filepath}/model.pt'
+    '''
+    If filepath is passed saving a .pt with custom naming already
+    then use that, otherwise automatically add model.pt
+    '''
+    if not filepath.endswith('.pt'):
+        local_path = f'{filepath}/model.pt'
+    else:
+        local_path = filepath
     torch.save(unwrap_model(model).state_dict(), local_path)
 
 def load_state_dict(model, filepath, crc=False):
