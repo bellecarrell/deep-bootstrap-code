@@ -151,7 +151,7 @@ class VanillaTBLogger():
         self.tbwriter.flush()
 
 class VanillaLocalLogger():
-    def __init__(self, args, proj_name, local_root='/home/annabelle/workplace/deep-bootstrap-code', comment=""):
+    def __init__(self, args, proj_name, local_root='~/data/deep-bootstrap-code', comment=""):
         self.run_id = get_guid()
         args.run_id = self.run_id
         self.local_logdir = f'{local_root}/{proj_name}/{self.run_id}'

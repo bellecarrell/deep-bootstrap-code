@@ -98,8 +98,8 @@ def predict(loader, model):
     predsAll = []
     with torch.no_grad():
         for i, (images, target) in enumerate(tqdm(loader)):
-            # todo: add back for cuda
-            images, target = cuda_transfer(images, target)
+            if use_cuda:
+                images, target = cuda_transfer(images, target)
             output = model(images)
 
             preds = output.argmax(1).long().cpu()
@@ -121,8 +121,8 @@ def test_all(loader, model, criterion):
         for i, (images, target) in enumerate(loader):
             bs = len(images)
 
-            # todo: add back for cuda
-            images, target = cuda_transfer(images, target)
+            if torch.cuda.is_available():
+                images, target = cuda_transfer(images, target)
             output = model(images)
             loss = criterion(output, target)
 
@@ -230,9 +230,10 @@ def main():
 
     #load the model
     model = get_model32(args, args.arch, half=args.half, nclasses=10, pretrained_path=args.pretrained)
-    model = torch.nn.DataParallel(model).cuda()
-    # todo: check if on gpu?
-    model.cuda()
+
+    if torch.cuda.is_available():
+        model = torch.nn.DataParallel(model).cuda()
+        model.cuda()
 
     # init logging
     # todo: log local?
@@ -266,8 +267,8 @@ def main():
         transforms.ToTensor(),
         transforms.Normalize((125.3/255, 123.0/255, 113.9/255), (63.0/255, 62.1/255.0, 66.7/255.0)),
     ])
-    testsetout = torchvision.datasets.ImageFolder("data/Imagenet", transform=transform)
-    testloaderOut = torch.utils.data.DataLoader(testsetout, batch_size=1,
+    testsetout = torchvision.datasets.ImageFolder("~/data/Imagenet", transform=transform)
+    testloaderOut = torch.utils.data.DataLoader(testsetout, batch_size=256,
                                      shuffle=False, num_workers=2)
 
     # end OOD dataset
@@ -294,8 +295,8 @@ def main():
         model.train()
 
 
-        # todo: add back for cuda
-        images, target = cuda_transfer(images, target)
+        if torch.cuda.is_available():
+            images, target = cuda_transfer(images, target)
         output = model(images)
         loss = criterion(output, target)
 
