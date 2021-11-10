@@ -9,6 +9,8 @@ from datetime import datetime
 import torch.optim as optim
 from torch.optim import lr_scheduler
 import torch.nn as nn
+import torch.nn.functional as F
+import torchvision.transforms as transforms
 
 from common.datasets import load_cifar, TransformingTensorDataset, get_cifar_data_aug, load_cifar500
 import common.models32 as models
@@ -139,3 +141,145 @@ def accuracy(output, target, topk=(1,)):
                 correct_k = correct[:k].view(-1).float().sum(0, keepdim=True)
                 res.append(correct_k.mul_(100.0 / batch_size))
         return res
+
+
+def recycle(iterable):
+    """Variant of itertools.cycle that does not save iterates."""
+    while True:
+        for i in iterable:
+            yield i
+
+
+
+def cuda_transfer(images, target):
+    images = images.cuda(non_blocking=True)
+    target = target.cuda(non_blocking=True)
+    if args.half: images = images.half()
+    return images, target
+
+def mse_loss(output, y):
+    y_true = F.one_hot(y, 10).float()
+    return (output - y_true).pow(2).sum(-1).mean()
+
+def predict(loader, model):
+    # switch to evaluate mode
+    model.eval()
+    n = 0
+    predsAll = []
+    with torch.no_grad():
+        for i, (images, target) in enumerate(tqdm(loader)):
+            images, target = cuda_transfer(images, target)
+            output = model(images)
+
+            preds = output.argmax(1).long().cpu()
+            predsAll.append(preds)
+
+    preds = torch.cat(predsAll)
+    return preds
+
+
+def test_all(loader, model, criterion):
+    # switch to evaluate mode
+    model.eval()
+    aloss = AverageMeter('Loss')
+    aerr = AverageMeter('Error')
+    asoft = AverageMeter('SoftError')
+    mets = [aloss, aerr, asoft]
+
+    with torch.no_grad():
+        for i, (images, target) in enumerate(loader):
+            bs = len(images)
+            if torch.cuda.is_available():
+                images, target = cuda_transfer(images, target)
+            output = model(images)
+            loss = criterion(output, target)
+
+            err = (output.argmax(1) != target).float().mean().item()
+            p = F.softmax(output, dim=1) # [bs x 10] : softmax probabilties
+            p_corr = p.gather(1, target.unsqueeze(1)).squeeze() # [bs]: prob on the correct label
+            soft = (1-p_corr).mean().item()
+
+
+            aloss.update(loss.item(), bs)
+            aerr.update(err, bs)
+            asoft.update(soft, bs)
+
+    results = {m.name : m.avg for m in mets}
+    return results
+
+
+
+def get_dataset(dataset):
+    '''
+        Returns dataset and pre-transform (to process dataset into [-1, 1] torch tensor)
+    '''
+
+    noop = transforms.Compose([])
+    normalize = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+    uint_transform = transforms.Compose([
+            transforms.ToTensor(),
+            normalize]) # numpy unit8 --> [-1, 1] tensor
+
+    if dataset == 'cifar10':
+        return load_cifar(), noop
+    if dataset == 'cifar550':
+        return load_cifar550(), noop
+    if dataset == 'cifar5m':
+        return load_cifar5m(), uint_transform
+
+
+def add_noise(Y, p: float):
+    ''' Adds noise to Y, s.t. the label is wrong w.p. p '''
+    num_classes = torch.max(Y).item()+1
+    print('num classes: ', num_classes)
+    noise_dist = torch.distributions.categorical.Categorical(
+        probs=torch.tensor([1.0 - p] + [p / (num_classes-1)] * (num_classes-1)))
+    return (Y + noise_dist.sample(Y.shape)) % num_classes
+
+
+def get_data_aug(aug : int):
+    normalize = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+    unnormalize = transforms.Compose([
+        transforms.Normalize((0, 0, 0), (2, 2, 2)),
+        transforms.Normalize((-0.5, -0.5, -0.5), (1, 1, 1))
+    ])
+
+    if aug == 0:
+        print('data-aug: NONE')
+        return transforms.Compose([])
+    elif aug == 1:
+        print('data-aug: flips only')
+        return transforms.Compose(
+            [unnormalize,
+            transforms.ToPILImage(),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            normalize
+            ])
+    elif aug == 2:
+        print('data-aug: full')
+        return transforms.Compose(
+            [unnormalize,
+            transforms.ToPILImage(),
+            transforms.RandomCrop(32, padding=4),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            normalize
+            ])
+    elif aug == 3:
+        print('data-aug: full (reflect-crop)')
+        return transforms.Compose(
+            [unnormalize,
+            transforms.ToPILImage(),
+            transforms.RandomCrop(32, padding=4, padding_mode='reflect'),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            normalize
+            ])
+
+
+def make_loader(x, y, transform=None, batch_size=256, num_workers=1):
+    dataset = TransformingTensorDataset(x, y, transform=transform)
+    loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size,
+            shuffle=False, num_workers=num_workers, pin_memory=True)
+    return loader

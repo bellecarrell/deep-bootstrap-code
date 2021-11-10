@@ -39,7 +39,10 @@ def save_model(model, filepath):
 def load_state_dict(model, filepath, crc=False):
     #local_path = dload(filepath, overwrite=True, crc=crc)
     local_path = filepath # TODO: any other validations?
-    model.load_state_dict(torch.load(local_path))
+    if torch.cuda.is_available():
+        model.load_state_dict(torch.load(local_path))
+    else:
+        model.load_state_dict(torch.load(local_path, map_location=torch.device('cpu')))
 
 def count_params(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
