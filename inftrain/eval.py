@@ -22,7 +22,7 @@ from torch.utils.data import TensorDataset
 import torch.optim as optim
 from torch.optim import lr_scheduler
 
-from common.datasets import load_cifar, TransformingTensorDataset, get_cifar_data_aug
+from common.datasets import load_cifar, TransformingTensorDataset, get_cifar_data_aug, load_cifar10_1
 from common.datasets import load_cifar550, load_svhn_all, load_svhn, load_cifar5m
 import common.models32 as models
 from common import load_state_dict
@@ -33,7 +33,7 @@ from common.logging import VanillaLogger
 
 parser = argparse.ArgumentParser(description='vanilla testing')
 parser.add_argument('--proj', default='test-soft', type=str, help='project name')
-parser.add_argument('--dataset', default='cifar5m', type=str, choices=['base_cifar10_train', 'base_cifar10_val', 'base_cifar10_test', 'cifar10c'])
+parser.add_argument('--eval-dataset', default='base_cifar10_train', type=str, choices=['base_cifar10_train', 'base_cifar10_val', 'base_cifar10_test', 'cifar10c', 'cifar10_1'])
 parser.add_argument('--nsamps', default=50000, type=int, help='num. train samples')
 parser.add_argument('--batchsize', default=128, type=int)
 parser.add_argument('--iid', default=False, action='store_true', help='simulate infinite samples (fresh samples each batch)')
@@ -69,8 +69,8 @@ corruptions = [
 default_subset = 'all'
 
 def get_loaders():
-    if args.dataset.startswith('base_cifar10') and not args.dataset.endswith('test'):
-        (X_tr, Y_tr, X_te, Y_te), preproc = get_dataset(dataset_names[args.dataset])
+    if args.eval_dataset.startswith('base_cifar10') and not args.eval_dataset.endswith('test'):
+        (X_tr, Y_tr, X_te, Y_te), preproc = get_dataset(dataset_names[args.eval_dataset])
 
         # subsample
         if not args.iid:
@@ -89,13 +89,13 @@ def get_loaders():
         te_loader = torch.utils.data.DataLoader(val_set, batch_size=256,
                 shuffle=False, num_workers=args.workers, pin_memory=True)
 
-        if args.dataset.endswith('train'):
+        if args.eval_dataset.endswith('train'):
             return {default_subset: tr_loader}
-        elif args.dataset.endswith('val'):
+        elif args.eval_dataset.endswith('val'):
             return {default_subset: te_loader}
-    elif args.dataset == 'base_cifar10_test':
+    elif args.eval_dataset == 'base_cifar10_test':
         return {default_subset: make_loader(*(load_cifar()[2:]))}
-    elif args.dataset == 'cifar10c':
+    elif args.eval_dataset == 'cifar10c':
         preprocess = transforms.Compose(
       [transforms.ToTensor(),
        transforms.Normalize([0.5] * 3, [0.5] * 3)])
@@ -116,6 +116,23 @@ def get_loaders():
                 pin_memory=True)        
             test_loaders[corruption] = test_loader
         return test_loaders
+    elif args.eval_dataset == 'cifar10_1':
+        data, targets = load_cifar10_1('v4', args.datadir)
+        preprocess = transforms.Compose(
+      [transforms.ToTensor(),
+       transforms.Normalize([0.5] * 3, [0.5] * 3)])
+        test_transform = preprocess
+        test_loaders = {}
+        test_data = datasets.CIFAR10(args.datadir, train=False, transform=test_transform, download=True)
+        test_data.data = data
+        test_data.targets = torch.tensor(targets, dtype=torch.long)
+        test_loader = torch.utils.data.DataLoader(
+                test_data,
+                batch_size=args.batchsize,
+                shuffle=False,
+                num_workers=args.workers,
+                pin_memory=True) 
+        return {default_subset: test_loader}
 
 def main():
     ## argparsing hacks
@@ -146,7 +163,7 @@ def main():
 
     summary = {}
     for name, test_loader in test_loaders.items():
-        summary.update({ f'Final Test on dataset {args.dataset} subset {name} {k}' : v for k, v in test_all(test_loader, model, criterion).items()})
+        summary.update({ f'Final Test on dataset {args.eval_dataset} subset {name} {k}' : v for k, v in test_all(test_loader, model, criterion).items()})
 
     logger.log_summary(summary)
     logger.flush()
