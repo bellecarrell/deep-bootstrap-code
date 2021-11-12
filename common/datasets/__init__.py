@@ -4,8 +4,10 @@ import numpy as np
 from torchvision.transforms import transforms
 import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset, TensorDataset
+from torchvision.datasets.folder import default_loader
 import os.path as path
 from os.path import join as pjoin
+from os import listdir
 import pathlib
 import json
 
@@ -60,6 +62,39 @@ class TransformingTensorDataset(Dataset):
     def __len__(self):
         return len(self.X)
 
+def load_pacs(test_percent=0.2):
+    '''
+    Going to ignore the train-val splits because I am finding it confusing..
+    For now will do a random stratified train/test sample across domains and classes
+    '''
+    domains = ['art_painting', 'cartoon', 'photo', 'sketch']
+    classes = ['dog', 'elephant', 'giraffe', 'guitar', 'horse', 'house', 'person']
+    local_dir = '/expanse/lustre/projects/csd697/nmallina/data/pacs'
+    X_tr = []
+    X_te = []
+    Y_tr = []
+    Y_te = []
+    for domain in domains:
+        for class_idx, class in enumerate(classes):
+            imgs = np.array([img for img in listdir(pjoin(local_dir, 'kfold', domain, class)) if img.endswith('.jpg')])
+            permute = np.random.permutation(len(imgs))
+            n_tr = int(len(imgs)*(1.0-test_percent))
+            tr_imgs = imgs[permute[:n_tr]]
+            te_imgs = imgs[permute[n_tr:]]
+            for tr_img in tr_imgs:
+                X_tr.append(default_loader(tr_img))
+                Y_tr.append(class_idx)
+            for te_img in te_imgs:
+                X_te.append(default_loader(te_img))
+                Y_te.append(class_idx)
+
+    X_tr = torch.Tensor(np.transpose(np.array(X_tr), (0, 3, 1, 2))).float() / 255.0 * 2.0 - 1.0 # [-1, 1]
+    X_te = torch.Tensor(np.transpose(np.array(X_te), (0, 3, 1, 2))).float() / 255.0 * 2.0 - 1.0 # [-1, 1]
+    Y_tr = torch.Tensor(np.array(Y_tr)).long()
+    Y_te = torch.Tensor(np.array(Y_te)).long()
+
+    return X_tr, Y_tr, X_te, Y_te
+
 def load_cifar5m():
     '''
         Returns 5million synthetic samples.
@@ -81,15 +116,15 @@ def load_cifar5m():
         Ys.append(torch.tensor(z['Y']).long())
         print(f'Loaded part {i+1}/6')
     Y_tr = torch.cat(Ys)
-    
+
     z = np.load(pjoin(local_dir, 'part5.npz')) # use the 6th million for test.
     print(f'Loaded part 6/6')
-    
+
     X_te = z['X'][:nte]
     Y_te = torch.tensor(z['Y'][:nte]).long()
-    
+
     return X_tr, Y_tr, X_te, Y_te
-    
+
 def load_cifar500():
     import pickle
 
@@ -98,10 +133,10 @@ def load_cifar500():
     X = data['data']
     Y_orig = torch.Tensor(data['extrapolated_targets']).long()
     X = torch.Tensor(np.transpose(X, (0, 3, 1, 2))).float() / 255.0 * 2.0 - 1.0 # [-1, 1]
-    
+
     # Load Big-Transfer (BiT-M) predictions
     Y = torch.Tensor(np.load(dload('gs://gpreetum/datasets/cifar500/preds_bit.npy'))).long()
-    
+
     I = np.flatnonzero(Y == Y_orig) # only keep indices where original and BiT predictions match (94% agree)
     I = np.random.RandomState(seed=42).permutation(I)
     return X[I], Y[I]
@@ -288,9 +323,9 @@ def load_svhn_all():
     X1, Y1 = to_xy(train)
     X2, Y2 = to_xy(test)
     X3, Y3 = to_xy(extra)
-    
+
     X = torch.cat([X1, X2, X3])
     Y = torch.cat([Y1, Y2, Y3])
     I = np.random.RandomState(seed=42).permutation(len(X))
-    
+
     return X[I], Y[I]
