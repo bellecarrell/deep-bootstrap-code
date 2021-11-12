@@ -227,15 +227,6 @@ def main():
     wandb.init(project=args.proj)
     cudnn.benchmark = True
 
-    #load the model
-    model = get_model32(args, args.arch, half=args.half, nclasses=10, pretrained_path=args.pretrained)
-    # model = torch.nn.DataParallel(model).cuda()
-    print('Loading pretrained model')
-    load_state_dict(model, args.pretrained)
-
-    print('Transferring model to GPU')
-    model.cuda()
-
     # init logging
     logger = VanillaLogger(args, wandb, hash=True)
 
@@ -259,6 +250,15 @@ def main():
             shuffle=True, num_workers=args.workers, pin_memory=True, drop_last=True) # drop the last batch if it's incomplete (< batch size)
     te_loader = torch.utils.data.DataLoader(val_set, batch_size=256,
             shuffle=False, num_workers=args.workers, pin_memory=True)
+
+    #load the model
+    model = get_model32(args, args.arch, half=args.half, nclasses=torch.max(Y).item()+1, pretrained_path=args.pretrained)
+    # model = torch.nn.DataParallel(model).cuda()
+    print('Loading pretrained model')
+    load_state_dict(model, args.pretrained)
+
+    print('Transferring model to GPU')
+    model.cuda()
 
     print('Done loading.')
 
