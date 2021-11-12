@@ -4,7 +4,6 @@ import numpy as np
 from torchvision.transforms import transforms
 import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset, TensorDataset
-from torchvision.datasets.folder import default_loader
 import os.path as path
 from os.path import join as pjoin
 from os import listdir
@@ -63,30 +62,20 @@ class TransformingTensorDataset(Dataset):
         return len(self.X)
 
 def load_pacs(test_percent=0.2):
-    '''
-    Going to ignore the train-val splits because I am finding it confusing..
-    For now will do a random stratified train/test sample across domains and classes
-    '''
     domains = ['art_painting', 'cartoon', 'photo', 'sketch']
-    classes = ['dog', 'elephant', 'giraffe', 'guitar', 'horse', 'house', 'person']
-    local_dir = '/expanse/lustre/projects/csd697/nmallina/data/pacs'
+    local_dir = '/expanse/lustre/projects/csd697/nmallina/data/pacs/Train val splits and h5py files pre-read'
     X_tr = []
     X_te = []
     Y_tr = []
     Y_te = []
+
     for domain in domains:
-        for class_idx, class in enumerate(classes):
-            imgs = np.array([img for img in listdir(pjoin(local_dir, 'kfold', domain, class)) if img.endswith('.jpg')])
-            permute = np.random.permutation(len(imgs))
-            n_tr = int(len(imgs)*(1.0-test_percent))
-            tr_imgs = imgs[permute[:n_tr]]
-            te_imgs = imgs[permute[n_tr:]]
-            for tr_img in tr_imgs:
-                X_tr.append(default_loader(tr_img))
-                Y_tr.append(class_idx)
-            for te_img in te_imgs:
-                X_te.append(default_loader(te_img))
-                Y_te.append(class_idx)
+        with open(h5py.File(pjoin(local_dir, f'{domain}_train.hdf5'))) as tr:
+            X_tr += list(tr['images'])
+            Y_tr += list(tr['labels'])
+        with open(h5py.File(pjoin(local_dir, f'{domain}_val.hdf5'))) as te:
+            X_te += list(te['images'])
+            Y_te += list(te['images'])
 
     X_tr = torch.Tensor(np.transpose(np.array(X_tr), (0, 3, 1, 2))).float() / 255.0 * 2.0 - 1.0 # [-1, 1]
     X_te = torch.Tensor(np.transpose(np.array(X_te), (0, 3, 1, 2))).float() / 255.0 * 2.0 - 1.0 # [-1, 1]
