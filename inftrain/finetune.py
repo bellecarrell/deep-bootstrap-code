@@ -36,7 +36,7 @@ parser.add_argument('--proj', default='test-soft', type=str, help='project name'
 parser.add_argument('--wandb_mode', default='online', type=str, help='[online, offline]')
 parser.add_argument('--dataset', default='pacs', type=str)
 parser.add_argument('--nsamps', default=-1, type=int, help='num. train samples, -1 uses the entire dataset')
-parser.add_argument('--batchsize', default=256, type=int)
+parser.add_argument('--batchsize', default=128, type=int)
 parser.add_argument('--k', default=4, type=int, help="log every k batches", dest='k')
 
 # parser.add_argument('--arch', metavar='ARCH', default='mlp[16384,16384,512]')
