@@ -64,7 +64,7 @@ class TransformingTensorDataset(Dataset):
 
 def load_pacs(test_percent=0.2):
     domains = ['art_painting', 'cartoon', 'photo', 'sketch']
-    local_dir = '/expanse/lustre/projects/csd697/nmallina/data/pacs/Train val splits and h5py files pre-read'
+    local_dir = '/expanse/lustre/projects/csd697/nmallina/data/PACS/Train val splits and h5py files pre-read'
     X_tr = []
     X_te = []
     Y_tr = []
