@@ -71,10 +71,10 @@ def load_pacs(test_percent=0.2):
     Y_te = []
 
     for domain in domains:
-        with open(h5py.File(pjoin(local_dir, f'{domain}_train.hdf5'))) as tr:
+        with h5py.File(pjoin(local_dir, f'{domain}_train.hdf5'), 'r') as tr:
             X_tr += list(tr['images'])
             Y_tr += list(tr['labels'])
-        with open(h5py.File(pjoin(local_dir, f'{domain}_val.hdf5'))) as te:
+        with h5py.File(pjoin(local_dir, f'{domain}_val.hdf5'), 'r') as te:
             X_te += list(te['images'])
             Y_te += list(te['images'])
 
