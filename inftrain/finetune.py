@@ -252,7 +252,7 @@ def main():
             shuffle=False, num_workers=args.workers, pin_memory=True)
 
     #load the model
-    model = get_model32(args, args.arch, half=args.half, nclasses=torch.max(Y).item()+1, pretrained_path=args.pretrained)
+    model = get_model32(args, args.arch, half=args.half, nclasses=torch.max(Y_tr).item()+1, pretrained_path=args.pretrained)
     # model = torch.nn.DataParallel(model).cuda()
     print('Loading pretrained model')
     load_state_dict(model, args.pretrained)
