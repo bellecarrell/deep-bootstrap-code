@@ -33,6 +33,7 @@ from common.logging import VanillaLogger
 
 parser = argparse.ArgumentParser(description='fine-tuning models')
 parser.add_argument('--proj', default='test-soft', type=str, help='project name')
+parser.add_argument('--wandb_mode', default='online', type=str, help='[online, offline]')
 parser.add_argument('--dataset', default='pacs', type=str)
 parser.add_argument('--pacs-fold', default=1, type=int, help='which fold of PACS dataset to use')
 parser.add_argument('--nsamps', default=-1, type=int, help='num. train samples, -1 uses the entire dataset')
@@ -71,6 +72,7 @@ parser.add_argument('--comment', default=None)
 
 args = parser.parse_args()
 
+os.environ["WANDB_MODE"] = args.wandb_mode
 
 def recycle(iterable):
     """Variant of itertools.cycle that does not save iterates."""
