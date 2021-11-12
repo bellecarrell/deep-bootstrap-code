@@ -27,6 +27,8 @@ def get_optimizer(optimizer_name, parameters, lr, momentum=0, weight_decay=0):
         return optim.Adagrad(parameters, lr=lr, weight_decay=weight_decay)
     elif optimizer_name == 'adam':
         return optim.Adam(parameters, lr=lr, weight_decay=weight_decay)
+    elif optimizer_name == 'adamw':
+        return optim.AdamW(parameters, lr=lr, weight_decay=weight_decay)
 
 
 def get_scheduler(args, scheduler_name, optimizer, num_epochs, batches_per_epoch, **kwargs):
