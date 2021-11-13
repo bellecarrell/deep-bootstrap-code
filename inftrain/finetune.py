@@ -265,23 +265,18 @@ def main():
 
     # batches / lr computations
     batches_per_epoch = int(np.floor(args.nsamps / args.batchsize))
-
-    # NOTE: this kind of logic isn't used in cited fine-tuning setups, if we want to include it we can add back
-    # if args.nbatches is None:
-    #     # set nbatches from EPOCHS
-    #     args.nbatches = int((args.nsamps / args.batchsize) * args.epochs)
-    #     args.batches_per_lr_step = batches_per_epoch
-    # num_lr_steps = (args.nbatches) // args.batches_per_lr_step # = epochs (unless --epochs is overridden)
-    # print(f'Num. total train batches: {args.nbatches}')
-
-    # for now, step with LR scheduler every batch instead of based on above logic
-    num_lr_steps = args.epochs
-    args.batches_per_lr_step = 1
+    if args.nbatches is None:
+        # set nbatches from EPOCHS
+        args.nbatches = int((args.nsamps / args.batchsize) * args.epochs)
+        args.batches_per_lr_step = batches_per_epoch
+    num_lr_steps = (args.nbatches) // args.batches_per_lr_step # = epochs (unless --epochs is overridden)
+    print(f'Num. total train batches: {args.nbatches}')
 
     # define loss function (criterion), optimizer and scheduler
     criterion = nn.CrossEntropyLoss().cuda() if args.loss == 'xent' else mse_loss
     optimizer = get_optimizer(args.opt, model.parameters(), args.lr, args.momentum, args.wd)
     scheduler = get_scheduler(args, args.scheduler, optimizer, num_epochs=num_lr_steps, batches_per_epoch=args.batches_per_lr_step)
+
     n_tot = 0
     for i, (images, target) in enumerate(recycle(tr_loader)):
         model.train()
