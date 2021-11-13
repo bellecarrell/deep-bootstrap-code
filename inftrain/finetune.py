@@ -25,7 +25,7 @@ from torch.optim import lr_scheduler
 from .utils import AverageMeter
 from common.datasets import TransformingTensorDataset
 from common.datasets import load_cifar550, load_svhn_all, load_svhn, load_cifar5m, load_pacs
-from common import load_state_dict
+from common import load_transfer_state_dict
 import common.models32 as models
 from .utils import get_model32, get_optimizer, get_scheduler
 
@@ -255,7 +255,7 @@ def main():
     model = get_model32(args, args.arch, half=args.half, nclasses=torch.max(Y_tr).item()+1, pretrained_path=args.pretrained)
     # model = torch.nn.DataParallel(model).cuda()
     print('Loading pretrained model')
-    load_state_dict(model, args.pretrained, filter_mismatched_keys=True)
+    load_transfer_state_dict(model, args.pretrained)
 
     print('Transferring model to GPU')
     model.cuda()

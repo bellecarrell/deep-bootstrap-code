@@ -19,3 +19,7 @@ Newly added args:
 ```
 --save_model_step {freq}: how frequent (in batches) to save intermediate models
 ```
+
+### Fine-tuning
+
+`python -m inftrain.finetune --proj finetune-test --wandb_mode offline --k 4 --pretrained /path/to/model.pt --aug 4`
