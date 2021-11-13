@@ -36,8 +36,22 @@ def save_model(model, filepath):
         local_path = filepath
     torch.save(unwrap_model(model).state_dict(), local_path)
 
-def load_state_dict(model, filepath, crc=False, filter_mismatched_keys=False):
+def load_state_dict(model, filepath, crc=False):
     #local_path = dload(filepath, overwrite=True, crc=crc)
+    local_path = filepath # TODO: any other validations?
+    if torch.cuda.is_available():
+        model.load_state_dict(torch.load(local_path))
+    else:
+        model.load_state_dict(torch.load(local_path, map_location=torch.device('cpu')))
+
+
+def load_transfer_state_dict(model, filepath):
+    '''
+    Variant of load_state_dict that filters out keys with size mismatch
+    and does not strictly load, so that new classification heads and
+    architecture changes are initialized as normal while those that
+    are the same as the pretrained state_dict are loaded from checkpoint.
+    '''
     local_path = filepath # TODO: any other validations?
     if torch.cuda.is_available():
         pretrained_dict = torch.load(local_path)
@@ -47,7 +61,7 @@ def load_state_dict(model, filepath, crc=False, filter_mismatched_keys=False):
         model_dict = model.state_dict()
         pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict and model_dict[k].size() == v.size()}
         model_dict.update(pretrained_dict)
-    model.load_state_dict(pretrained_dict)
+    model.load_state_dict(pretrained_dict, strict=False)
 
 def count_params(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
