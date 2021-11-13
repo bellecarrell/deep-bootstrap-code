@@ -1,5 +1,6 @@
 import torch
 import torchvision.datasets as ds
+from torchvision.transforms import Resize
 import numpy as np
 from torchvision.transforms import transforms
 import torch.nn as nn
@@ -78,10 +79,12 @@ def load_pacs(test_percent=0.2):
             X_te += list(te['images'])
             Y_te += list(te['labels'])
 
-    X_tr = torch.Tensor(np.transpose(np.array(X_tr), (0, 3, 1, 2))).float() / 255.0 * 2.0 - 1.0 # [-1, 1]
-    X_te = torch.Tensor(np.transpose(np.array(X_te), (0, 3, 1, 2))).float() / 255.0 * 2.0 - 1.0 # [-1, 1]
+    resize = Resize((32,32))
+    X_tr = resize(torch.Tensor(np.transpose(np.array(X_tr), (0, 3, 1, 2))).float()) / 255.0 * 2.0 - 1.0 # [-1, 1]
+    X_te = resize(torch.Tensor(np.transpose(np.array(X_te), (0, 3, 1, 2))).float()) / 255.0 * 2.0 - 1.0 # [-1, 1]
     Y_tr = torch.Tensor(np.array(Y_tr)-1).long()
     Y_te = torch.Tensor(np.array(Y_te)-1).long()
+    
     return X_tr, Y_tr, X_te, Y_te
 
 def load_cifar5m():

@@ -282,7 +282,6 @@ def main():
     criterion = nn.CrossEntropyLoss().cuda() if args.loss == 'xent' else mse_loss
     optimizer = get_optimizer(args.opt, model.parameters(), args.lr, args.momentum, args.wd)
     scheduler = get_scheduler(args, args.scheduler, optimizer, num_epochs=num_lr_steps, batches_per_epoch=args.batches_per_lr_step)
-
     n_tot = 0
     for i, (images, target) in enumerate(recycle(tr_loader)):
         model.train()
