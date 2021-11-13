@@ -57,10 +57,10 @@ def load_transfer_state_dict(model, filepath):
         pretrained_dict = torch.load(local_path)
     else:
         pretrained_dict = torch.load(local_path, map_location=torch.device('cpu'))
-    if filter_mismatched_keys:
-        model_dict = model.state_dict()
-        pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict and model_dict[k].size() == v.size()}
-        model_dict.update(pretrained_dict)
+
+    model_dict = model.state_dict()
+    pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict and model_dict[k].size() == v.size()}
+    model_dict.update(pretrained_dict)
     model.load_state_dict(pretrained_dict, strict=False)
 
 def count_params(model):
