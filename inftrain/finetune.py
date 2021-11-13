@@ -255,7 +255,7 @@ def main():
     model = get_model32(args, args.arch, half=args.half, nclasses=torch.max(Y_tr).item()+1, pretrained_path=args.pretrained)
     # model = torch.nn.DataParallel(model).cuda()
     print('Loading pretrained model')
-    load_state_dict(model, args.pretrained)
+    load_state_dict(model, args.pretrained, filter_mismatched_keys=True)
 
     print('Transferring model to GPU')
     model.cuda()
