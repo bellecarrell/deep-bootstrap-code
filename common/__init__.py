@@ -36,14 +36,14 @@ def save_model(model, filepath):
         local_path = filepath
     torch.save(unwrap_model(model).state_dict(), local_path)
 
-def load_state_dict(model, filepath, crc=False, filter_keys=False):
+def load_state_dict(model, filepath, crc=False, filter_mismatched_keys=False):
     #local_path = dload(filepath, overwrite=True, crc=crc)
     local_path = filepath # TODO: any other validations?
     if torch.cuda.is_available():
         pretrained_dict = torch.load(local_path)
     else:
         pretrained_dict = torch.load(local_path, map_location=torch.device('cpu'))
-    if filter_keys:
+    if filter_mismatched_keys:
         model_dict = model.state_dict()
         pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict and model_dict[k].size() == v.size()}
         model_dict.update(pretrained_dict)
