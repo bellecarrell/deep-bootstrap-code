@@ -36,13 +36,18 @@ def save_model(model, filepath):
         local_path = filepath
     torch.save(unwrap_model(model).state_dict(), local_path)
 
-def load_state_dict(model, filepath, crc=False):
+def load_state_dict(model, filepath, crc=False, filter_keys=False):
     #local_path = dload(filepath, overwrite=True, crc=crc)
     local_path = filepath # TODO: any other validations?
     if torch.cuda.is_available():
-        model.load_state_dict(torch.load(local_path))
+        pretrained_dict = torch.load(local_path)
     else:
-        model.load_state_dict(torch.load(local_path, map_location=torch.device('cpu')))
+        pretrained_dict = torch.load(local_path, map_location=torch.device('cpu'))
+    if filter_keys:
+        model_dict = model.state_dict()
+        pretrained_dict = {k: v for k, v in pretrained_dict.items() if k in model_dict and model_dict[k].size() == v.size()}
+        model_dict.update(pretrained_dict)
+    model.load_state_dict(pretrained_dict)
 
 def count_params(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
