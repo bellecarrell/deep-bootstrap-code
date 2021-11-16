@@ -24,7 +24,7 @@ from torch.optim import lr_scheduler
 
 from .utils import AverageMeter
 from common.datasets import TransformingTensorDataset
-from common.datasets import load_cifar550, load_svhn_all, load_svhn, load_cifar5m, load_pacs
+from common.datasets import load_cifar550, load_svhn_all, load_svhn, load_cifar5m, load_cifar100, load_pacs
 from common import load_transfer_state_dict
 import common.models32 as models
 from .utils import get_model32, get_optimizer, get_scheduler
