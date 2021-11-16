@@ -155,6 +155,8 @@ def get_dataset(dataset):
         return load_cifar550(), noop
     if dataset == 'cifar5m':
         return load_cifar5m(), uint_transform
+    if dataset == 'cifar100':
+        return load_cifar100(), noop
     if dataset == 'pacs':
         return load_pacs(), noop
 
