@@ -26,16 +26,18 @@ from .utils import AverageMeter
 from common.datasets import load_cifar, TransformingTensorDataset, get_cifar_data_aug
 from common.datasets import load_cifar550, load_svhn_all, load_svhn, load_cifar5m
 import common.models32 as models
-from .utils import get_model32, get_optimizer, get_scheduler
+from .utils import get_model32, get_optimizer, get_scheduler, make_loader_cifar10_1
 
 from common.logging import VanillaLogger
 
 parser = argparse.ArgumentParser(description='vanilla training')
 parser.add_argument('--proj', default='test-soft', type=str, help='project name')
 parser.add_argument('--dataset', default='cifar5m', type=str)
+parser.add_argument('--datadir', type=str, default='', help='path to data')
 parser.add_argument('--nsamps', default=50000, type=int, help='num. train samples')
 parser.add_argument('--batchsize', default=128, type=int)
 parser.add_argument('--k', default=64, type=int, help="log every k batches", dest='k')
+parser.add_argument('--save-at-k', default=False, action='store_true', help='save model at every k step (and more often in early stages)')
 parser.add_argument('--iid', default=False, action='store_true', help='simulate infinite samples (fresh samples each batch)')
 parser.add_argument('--save_model_step', default=-1, type=int, help='step frequency for saving intermediate models')
 
@@ -44,6 +46,7 @@ parser.add_argument('--arch', metavar='ARCH', default='preresnet18')
 parser.add_argument('--pretrained', type=str, default=None, help='expanse path to pretrained model state dict (optional)')
 parser.add_argument('--width', default=None, type=int, help="architecture width parameter (optional)")
 parser.add_argument('--loss', default='xent', choices=['xent', 'mse'], type=str)
+parser.add_argument('--cifar10-1', default=False, action='store_true', help='evaluate on cifar10.1')
 
 parser.add_argument('--opt', default="sgd", type=str)
 parser.add_argument('--lr', default=0.1, type=float, help='initial learning rate', dest='lr')
@@ -118,7 +121,8 @@ def test_all(loader, model, criterion):
     with torch.no_grad():
         for i, (images, target) in enumerate(loader):
             bs = len(images)
-            images, target = cuda_transfer(images, target)
+            if torch.cuda.is_available():
+                images, target = cuda_transfer(images, target)
             output = model(images)
             loss = criterion(output, target)
 
@@ -212,6 +216,9 @@ def make_loader(x, y, transform=None, batch_size=256):
             shuffle=False, num_workers=args.workers, pin_memory=True)
     return loader
 
+def get_wandb_name(args):
+    return f'{args.arch}-{args.dataset} n={args.nsamps} aug={args.aug} iid={args.iid}'
+
 def main():
     ## argparsing hacks
     if args.sched is not None:
@@ -221,13 +228,16 @@ def main():
     if args.pretrained == 'None':
         args.pretrained = None # hack for caliban
 
-    wandb.init(project=args.proj)
+    wandb.init(project=args.proj, entity='deep-bootstrap2')
+    wandb.run.name = wandb.run.id  + " - " + get_wandb_name(args)
+    wandb.run.save()
     cudnn.benchmark = True
 
     #load the model
     model = get_model32(args, args.arch, half=args.half, nclasses=10, pretrained_path=args.pretrained)
     # model = torch.nn.DataParallel(model).cuda()
-    model.cuda()
+    if torch.cuda.is_available():
+        model.cuda()
 
     # init logging
     logger = VanillaLogger(args, wandb, hash=True)
@@ -253,6 +263,10 @@ def main():
             shuffle=False, num_workers=args.workers, pin_memory=True)
 
     cifar_test = make_loader(*(load_cifar()[2:])) # original cifar-10 test set
+
+    if args.cifar10_1:
+        cifar10_1_loader = make_loader_cifar10_1(args)
+
     print('Done loading.')
 
 
@@ -276,7 +290,8 @@ def main():
     n_tot = 0
     for i, (images, target) in enumerate(recycle(tr_loader)):
         model.train()
-        images, target = cuda_transfer(images, target)
+        if torch.cuda.is_available():
+            images, target = cuda_transfer(images, target)
         output = model(images)
         loss = criterion(output, target)
 
@@ -306,6 +321,10 @@ def main():
             d.update({ f'Test {k}' : v for k, v in test_m.items()})
             d.update({ f'CF10 {k}' : v for k, v in testcf_m.items()})
 
+            if args.cifar10_1:
+                cf10_1_m = test_all(cifar10_1_loader, model, criterion)
+                d.update({ f'CF10.1 {k}' : v for k, v in cf10_1_m.items()})
+
             if not args.iid:
                 train_m = test_all(tr_loader, model, criterion)
                 d.update({ f'Train {k}' : v for k, v in train_m.items()})
@@ -317,6 +336,9 @@ def main():
 
             logger.log_scalars(d)
             logger.flush()
+
+            if args.save_at_k:
+                logger.save_model_step(i, model)
 
         if args.save_model_step > 0 and (i+1) % args.save_model_step == 0:
             logger.save_model_step(i, model)
@@ -340,6 +362,9 @@ def main():
     summary.update({ f'Final Test {k}' : v for k, v in test_all(te_loader, model, criterion).items()})
     summary.update({ f'Final Train {k}' : v for k, v in test_all(tr_loader, model, criterion).items()})
     summary.update({ f'Final CF10 {k}' : v for k, v in test_all(cifar_test, model, criterion).items()})
+
+    if args.cifar10_1:
+        summary.update({ f'Final CF10.1 {k}' : v for k, v in test_all(cifar10_1_loader, model, criterion).items()})
 
     logger.log_summary(summary)
     logger.flush()
