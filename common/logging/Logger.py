@@ -36,7 +36,7 @@ class VanillaLogger():
     '''
         Logs to GCS, wandb (internal).
     '''
-    def __init__(self, args, wandb, expanse_root='/expanse/lustre/projects/csd697/nmallina/bootstrap', hash=False):
+    def __init__(self, args, wandb, expanse_root='/expanse/lustre/projects/csd697/bellecarrell/bootstrap', hash=False):
 
         if hash: args.hash = _run_hash(args) # for easy run-grouping
         self.wandb = wandb
@@ -95,7 +95,8 @@ class VanillaLogger():
         self.wandb.summary = D
         self.save(D, 'summary')
 
-    def log_step(self, step, D : dict):
+    def log_step(self, step, D : dict, log_wandb=True):
+        if log_wandb: self.wandb.log(D, step=step)
         prefix = f'steps/step{step:06}'
         for k, v in D.items():
             self.save(v, f'{prefix}/{k}')

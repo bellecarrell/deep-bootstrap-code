@@ -11,8 +11,9 @@ from torch.optim import lr_scheduler
 import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.transforms as transforms
+import torchvision.datasets as datasets
 
-from common.datasets import load_cifar, TransformingTensorDataset, get_cifar_data_aug, load_cifar500
+from common.datasets import load_cifar, TransformingTensorDataset, get_cifar_data_aug, load_cifar500, load_cifar10_1
 import common.models32 as models
 
 
@@ -284,4 +285,24 @@ def make_loader(x, y, transform=None, batch_size=256, num_workers=1):
     dataset = TransformingTensorDataset(x, y, transform=transform)
     loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size,
             shuffle=False, num_workers=num_workers, pin_memory=True)
+    return loader
+
+def make_loader_cifar10_1(args):
+    datadir = '~/tmp/data/'
+    if args.datadir:
+        datadir = args.datadir
+    data, targets = load_cifar10_1('v4', datadir=datadir)    
+    preprocess = transforms.Compose(
+    [transforms.ToTensor(),
+    transforms.Normalize([0.5] * 3, [0.5] * 3)])
+    test_transform = preprocess
+    cifar10_1 = datasets.CIFAR10(datadir, train=False, transform=test_transform, download=True)
+    cifar10_1.data = data
+    cifar10_1.targets = torch.tensor(targets, dtype=torch.long)
+    loader = torch.utils.data.DataLoader(
+            cifar10_1,
+            batch_size=args.batchsize,
+            shuffle=False,
+            num_workers=args.workers,
+            pin_memory=True)
     return loader

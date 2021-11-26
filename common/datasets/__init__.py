@@ -167,8 +167,8 @@ def load_cifar(datadir='~/tmp/data'):
     X_te, Y_te = to_xy(test_ds)
     return X_tr, Y_tr, X_te, Y_te
 
-def load_cifar10_1(version_string='', datadir='~/tmp/data/', load_tinyimage_indices=False):
-    data_path = path.join(datadir, 'datasets/')
+def load_cifar10_1(version_string='', datadir='', load_tinyimage_indices=False):
+    data_path = path.join(datadir, 'CIFAR-10.1/datasets/')
     filename = 'cifar10.1'
     if version_string == '':
         version_string = 'v7'
