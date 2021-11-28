@@ -34,14 +34,14 @@ from common.logging import VanillaLogger
 parser = argparse.ArgumentParser(description='fine-tuning models')
 parser.add_argument('--proj', default='test-soft', type=str, help='project name')
 parser.add_argument('--wandb_mode', default='online', type=str, help='[online, offline]')
-parser.add_argument('--dataset', default='pacs', type=str)
+parser.add_argument('--dataset', default='cifar100', type=str)
 parser.add_argument('--nsamps', default=-1, type=int, help='num. train samples, -1 uses the entire dataset')
 parser.add_argument('--batchsize', default=128, type=int)
-parser.add_argument('--k', default=4, type=int, help="log every k batches", dest='k')
+parser.add_argument('--k', default=64, type=int, help="log every k batches", dest='k')
 
 # parser.add_argument('--arch', metavar='ARCH', default='mlp[16384,16384,512]')
 parser.add_argument('--arch', metavar='ARCH', default='preresnet18', help="ensure aligned to usage in train.py")
-parser.add_argument('--pretrained', type=str, required=True, help='expanse path to pretrained model state dict')
+parser.add_argument('--pretrained', type=str, default=None, help='expanse path to pretrained model state dict')
 parser.add_argument('--width', default=None, type=int, help="architecture width parameter (optional), ensure aligned to usage in train.py")
 parser.add_argument('--loss', default='xent', choices=['xent', 'mse'], type=str)
 
@@ -256,8 +256,10 @@ def main():
     #load the model
     model = get_model32(args, args.arch, half=args.half, nclasses=torch.max(Y_tr).item()+1, pretrained_path=args.pretrained)
     # model = torch.nn.DataParallel(model).cuda()
-    print('Loading pretrained model')
-    load_transfer_state_dict(model, args.pretrained)
+    
+    if args.pretrained is not None:
+        print('Loading pretrained model')
+        load_transfer_state_dict(model, args.pretrained)
 
     print('Transferring model to GPU')
     model.cuda()
