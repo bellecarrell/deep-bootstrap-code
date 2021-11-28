@@ -24,7 +24,7 @@ from torch.optim import lr_scheduler
 
 from .utils import AverageMeter
 from common.datasets import load_cifar, TransformingTensorDataset, get_cifar_data_aug
-from common.datasets import load_cifar550, load_svhn_all, load_svhn, load_cifar5m
+from common.datasets import load_cifar550, load_svhn_all, load_svhn, load_cifar5m, load_cifar100, load_pacs
 import common.models32 as models
 from .utils import get_model32, get_optimizer, get_scheduler, make_loader_cifar10_1
 
@@ -158,7 +158,10 @@ def get_dataset(dataset):
         return load_cifar550(), noop
     if dataset == 'cifar5m':
         return load_cifar5m(), uint_transform
-
+    if dataset == 'cifar100':
+        return load_cifar100(), noop
+    if dataset == 'pacs':
+        return load_pacs(), noop
 
 def add_noise(Y, p: float):
     ''' Adds noise to Y, s.t. the label is wrong w.p. p '''
@@ -205,6 +208,15 @@ def get_data_aug(aug : int):
             transforms.ToPILImage(),
             transforms.RandomCrop(32, padding=4, padding_mode='reflect'),
             transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            normalize
+            ])
+    elif aug == 4:
+        print('data-aug: crop')
+        return transforms.Compose(
+            [unnormalize,
+            transforms.ToPILImage(),
+            transforms.RandomCrop(32, padding=4),
             transforms.ToTensor(),
             normalize
             ])
