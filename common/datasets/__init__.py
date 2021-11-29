@@ -84,8 +84,21 @@ def load_pacs(test_percent=0.2):
     X_te = resize(torch.Tensor(np.transpose(np.array(X_te), (0, 3, 1, 2))).float()) / 255.0 * 2.0 - 1.0 # [-1, 1]
     Y_tr = torch.Tensor(np.array(Y_tr)-1).long()
     Y_te = torch.Tensor(np.array(Y_te)-1).long()
-    
+
     return X_tr, Y_tr, X_te, Y_te
+
+def load_cifar5m_test():
+    nte = 10000 # num. of test samples to use (max 1e6)
+    print('Downloading CIFAR 5mil...')
+    #local_dir = download_dir('gs://gresearch/cifar5m') # download all 6 dataset files
+    local_dir = '/expanse/lustre/projects/csd697/nmallina/data/cifar-5m'
+
+    z = np.load(pjoin(local_dir, 'part5.npz')) # use the 6th million for test.
+    print(f'Loaded part 6/6')
+
+    X_te = z['X'][:nte]
+    Y_te = torch.tensor(z['Y'][:nte]).long()
+    return X_te, Y_te
 
 def load_cifar5m():
     '''

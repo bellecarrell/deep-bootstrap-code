@@ -24,7 +24,7 @@ from torch.optim import lr_scheduler
 
 from .utils import AverageMeter
 from common.datasets import TransformingTensorDataset
-from common.datasets import load_cifar550, load_svhn_all, load_svhn, load_cifar5m, load_cifar100, load_pacs
+from common.datasets import load_cifar550, load_svhn_all, load_svhn, load_cifar5m, load_cifar5m_test, load_cifar100, load_pacs
 from common import load_transfer_state_dict
 import common.models32 as models
 from .utils import get_model32, get_optimizer, get_scheduler
@@ -161,6 +161,8 @@ def get_dataset(dataset):
         return load_cifar100(), noop
     if dataset == 'pacs':
         return load_pacs(), noop
+    if dataset == 'cifar5m-test':
+        return load_cifar5m_test(), uint_transform
 
 
 def add_noise(Y, p: float):
@@ -242,7 +244,7 @@ def main():
     (X_tr, Y_tr, X_te, Y_te), preproc = get_dataset(args.dataset)
 
     print('Loading CIFAR-5m test set...')
-    (_, _, cifar5m_X_te, cifar5m_Y_te), cifar5m_preproc = get_dataset(args.dataset)
+    (cifar5m_X_te, cifar5m_Y_te), cifar5m_preproc = get_dataset('cifar5m-test')
     cifar5m_Y_te = add_noise(cifar5m_Y_te, args.noise)
     cifar5m_te_set = TransformingTensorDataset(cifar5m_X_te, cifar5m_Y_te, transform=cifar5m_preproc)
     cifar5m_te_loader = torch.utils.data.DataLoader(cifar5m_te_set, batch_size=256,
