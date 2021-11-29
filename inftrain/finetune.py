@@ -231,7 +231,7 @@ def main():
     wandb.init(project=args.proj, entity='deep-bootstrap2')
     wandb.run.name = wandb.run.id
     if args.run_id_tag:
-        wandb.run.name += " - " args.run_id_tag
+        wandb.run.name += " - " + args.run_id_tag
     wandb.run.save()
     cudnn.benchmark = True
 
