@@ -24,7 +24,7 @@ from torch.optim import lr_scheduler
 
 from .utils import AverageMeter
 from common.datasets import TransformingTensorDataset
-from common.datasets import load_cifar550, load_svhn_all, load_svhn, load_cifar5m, load_cifar5m_test, load_cifar100, load_pacs
+from common.datasets import load_cifar550, load_svhn_all, load_svhn, load_cifar5m, load_cifar100, load_pacs
 from common import load_transfer_state_dict
 import common.models32 as models
 from .utils import get_model32, get_optimizer, get_scheduler
@@ -161,8 +161,6 @@ def get_dataset(dataset):
         return load_cifar100(), noop
     if dataset == 'pacs':
         return load_pacs(), noop
-    if dataset == 'cifar5m-test':
-        return load_cifar5m_test(), uint_transform
 
 
 def add_noise(Y, p: float):
@@ -243,13 +241,6 @@ def main():
     print('Loading datasets...')
     (X_tr, Y_tr, X_te, Y_te), preproc = get_dataset(args.dataset)
 
-    print('Loading CIFAR-5m test set...')
-    (cifar5m_X_te, cifar5m_Y_te), cifar5m_preproc = get_dataset('cifar5m-test')
-    cifar5m_Y_te = add_noise(cifar5m_Y_te, args.noise)
-    cifar5m_te_set = TransformingTensorDataset(cifar5m_X_te, cifar5m_Y_te, transform=cifar5m_preproc)
-    cifar5m_te_loader = torch.utils.data.DataLoader(cifar5m_te_set, batch_size=256,
-                                                    shuffle=False, num_workers=args.workers, pin_memory=True)
-
     if args.nsamps > 0:
         I = np.random.permutation(len(X_tr))[:args.nsamps]
         X_tr, Y_tr = X_tr[I], Y_tr[I]
@@ -324,9 +315,6 @@ def main():
 
             test_m = test_all(te_loader, model, criterion)
             d.update({ f'Test {k}' : v for k, v in test_m.items()})
-
-            cifar5m_test_m = test_all(cifar5m_te_loader, model, criterion)
-            d.update({ f'CF-5m {k}' : v for k, v in cifar5m_test_m.items()})
 
             train_m = test_all(tr_loader, model, criterion)
             d.update({ f'Train {k}' : v for k, v in train_m.items()})
