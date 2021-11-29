@@ -34,14 +34,16 @@ from common.logging import VanillaLogger
 parser = argparse.ArgumentParser(description='fine-tuning models')
 parser.add_argument('--proj', default='test-soft', type=str, help='project name')
 parser.add_argument('--wandb_mode', default='online', type=str, help='[online, offline]')
-parser.add_argument('--dataset', default='cifar100', type=str)
+parser.add_argument('--run_id_tag', default='', type=str)
+parser.add_argument('--dataset', default='pacs', type=str)
 parser.add_argument('--nsamps', default=-1, type=int, help='num. train samples, -1 uses the entire dataset')
 parser.add_argument('--batchsize', default=128, type=int)
-parser.add_argument('--k', default=64, type=int, help="log every k batches", dest='k')
+parser.add_argument('--k', default=4, type=int, help="log every k batches", dest='k')
+parser.add_argument('--save_final_model', default=False, action='store_true')
 
 # parser.add_argument('--arch', metavar='ARCH', default='mlp[16384,16384,512]')
 parser.add_argument('--arch', metavar='ARCH', default='preresnet18', help="ensure aligned to usage in train.py")
-parser.add_argument('--pretrained', type=str, default=None, help='expanse path to pretrained model state dict')
+parser.add_argument('--pretrained', type=str, required=True, help='expanse path to pretrained model state dict')
 parser.add_argument('--width', default=None, type=int, help="architecture width parameter (optional), ensure aligned to usage in train.py")
 parser.add_argument('--loss', default='xent', choices=['xent', 'mse'], type=str)
 
@@ -226,7 +228,11 @@ def main():
         args.epochs = sum(sched)
         args.scheduler = 'steps'
 
-    wandb.init(project=args.proj)
+    wandb.init(project=args.proj, entity='deep-bootstrap2')
+    wandb.run.name = wandb.run.id
+    if args.run_id_tag:
+        wandb.run.name += " - " args.run_id_tag
+    wandb.run.save()
     cudnn.benchmark = True
 
     # init logging
@@ -234,6 +240,13 @@ def main():
 
     print('Loading datasets...')
     (X_tr, Y_tr, X_te, Y_te), preproc = get_dataset(args.dataset)
+
+    print('Loading CIFAR-5m test set...')
+    (_, _, cifar5m_X_te, cifar5m_Y_te), cifar5m_preproc = get_dataset(args.dataset)
+    cifar5m_Y_te = add_noise(cifar5m_Y_te, args.noise)
+    cifar5m_te_set = TransformingTensorDataset(cifar5m_X_te, cifar5m_Y_te, transform=cifar5m_preproc)
+    cifar5m_te_loader = torch.utils.data.DataLoader(cifar5m_te_set, batch_size=256,
+                                                    shuffle=False, num_workers=args.workers, pin_memory=True)
 
     if args.nsamps > 0:
         I = np.random.permutation(len(X_tr))[:args.nsamps]
@@ -256,10 +269,8 @@ def main():
     #load the model
     model = get_model32(args, args.arch, half=args.half, nclasses=torch.max(Y_tr).item()+1, pretrained_path=args.pretrained)
     # model = torch.nn.DataParallel(model).cuda()
-    
-    if args.pretrained is not None:
-        print('Loading pretrained model')
-        load_transfer_state_dict(model, args.pretrained)
+    print('Loading pretrained model')
+    load_transfer_state_dict(model, args.pretrained)
 
     print('Transferring model to GPU')
     model.cuda()
@@ -312,6 +323,9 @@ def main():
             test_m = test_all(te_loader, model, criterion)
             d.update({ f'Test {k}' : v for k, v in test_m.items()})
 
+            cifar5m_test_m = test_all(cifar5m_te_loader, model, criterion)
+            d.update({ f'CF-5m {k}' : v for k, v in cifar5m_test_m.items()})
+
             train_m = test_all(tr_loader, model, criterion)
             d.update({ f'Train {k}' : v for k, v in train_m.items()})
 
@@ -334,7 +348,8 @@ def main():
             break; # break if small train loss
 
     ## Final logging
-    logger.save_model(model)
+    if args.save_final_model:
+        logger.save_model(model)
 
     summary = {}
     summary.update({ f'Final Test {k}' : v for k, v in test_all(te_loader, model, criterion).items()})
