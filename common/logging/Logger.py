@@ -41,7 +41,7 @@ class VanillaLogger():
         if hash: args.hash = _run_hash(args) # for easy run-grouping
         self.wandb = wandb
         proj_name = args.proj
-        wandb.config.update(args) # set wandb config to arguments
+        wandb.config.update(args,allow_val_change=True) # set wandb config to arguments
         self.run_id = wandb.run.id
         args.run_id = self.run_id
 
@@ -49,8 +49,9 @@ class VanillaLogger():
         self.expanse_modeldir = f'{expanse_root}/models/{proj_name}/{self.run_id}'
 
         # run_id is always uniquely generated so there are no problems in overwriting
-        os.makedirs(self.expanse_logdir)
-        os.makedirs(self.expanse_modeldir)
+        if not os.path.isdir(self.expanse_logdir):
+            os.makedirs(self.expanse_logdir)
+            os.makedirs(self.expanse_modeldir)
 
         print("Expanse Logdir:", self.expanse_logdir)
         self.save(vars(args), 'config')

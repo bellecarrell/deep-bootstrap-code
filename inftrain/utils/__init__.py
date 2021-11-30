@@ -13,7 +13,7 @@ import torch.nn.functional as F
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 
-from common.datasets import load_cifar, TransformingTensorDataset, get_cifar_data_aug, load_cifar500, load_cifar10_1
+from common.datasets import load_cifar, TransformingTensorDataset, get_cifar_data_aug, load_cifar500, load_cifar10_1, load_cifar5m
 import common.models32 as models
 
 
@@ -306,3 +306,6 @@ def make_loader_cifar10_1(args):
             num_workers=args.workers,
             pin_memory=True)
     return loader
+
+def get_wandb_name(args):
+    return f'{args.arch}-{args.dataset} n={args.nsamps} aug={args.aug} iid={args.iid}'
