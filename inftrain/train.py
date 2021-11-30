@@ -26,7 +26,7 @@ from .utils import AverageMeter
 from common.datasets import load_cifar, TransformingTensorDataset, get_cifar_data_aug, AugMixDataset
 from common.datasets import load_cifar550, load_svhn_all, load_svhn, load_cifar5m, load_cifar100, load_pacs
 import common.models32 as models
-from .utils import get_model32, get_optimizer, get_scheduler, make_loader_cifar10_1, get_wandb_name, get_dataset, add_noise, get_data_aug, cuda_transfer, recycle, mse_loss, test_all
+from .utils import get_model32, get_optimizer, get_scheduler, make_loader_cifar10_1, get_wandb_name, get_dataset, add_noise, get_data_aug, cuda_transfer, recycle, mse_loss, test_all, augmentations
 
 from common.logging import VanillaLogger
 
@@ -81,6 +81,35 @@ def make_loader(x, y, transform=None, batch_size=256):
     loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size,
             shuffle=False, num_workers=args.workers, pin_memory=True)
     return loader
+
+def aug(image, preprocess):
+  """Perform AugMix augmentations and compute mixture.
+  Args:
+    image: PIL.Image input image
+    preprocess: Preprocessing function which should return a torch tensor.
+  Returns:
+    mixed: Augmented and mixed image.
+  """
+  aug_list = augmentations.augmentations
+  if args.all_ops:
+    aug_list = augmentations.augmentations_all
+
+  ws = np.float32(np.random.dirichlet([1] * args.mixture_width))
+  m = np.float32(np.random.beta(1, 1))
+
+  mix = torch.zeros_like(preprocess(image))
+  for i in range(args.mixture_width):
+    image_aug = image.copy()
+    depth = args.mixture_depth if args.mixture_depth > 0 else np.random.randint(
+        1, 4)
+    for _ in range(depth):
+      op = np.random.choice(aug_list)
+      image_aug = op(image_aug, args.aug_severity)
+    # Preprocessing commutes since all coefficients are convex
+    mix += ws[i] * preprocess(image_aug)
+
+  mixed = (1 - m) * preprocess(image) + m * mix
+  return mixed
 
 
 def main():
