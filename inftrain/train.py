@@ -23,10 +23,10 @@ import torch.optim as optim
 from torch.optim import lr_scheduler
 
 from .utils import AverageMeter
-from common.datasets import load_cifar, TransformingTensorDataset, get_cifar_data_aug
+from common.datasets import load_cifar, TransformingTensorDataset, get_cifar_data_aug, AugMixDataset
 from common.datasets import load_cifar550, load_svhn_all, load_svhn, load_cifar5m, load_cifar100, load_pacs
 import common.models32 as models
-from .utils import get_model32, get_optimizer, get_scheduler, make_loader_cifar10_1
+from .utils import get_model32, get_optimizer, get_scheduler, make_loader_cifar10_1, get_wandb_name, get_dataset, add_noise, get_data_aug, cuda_transfer, recycle, mse_loss, test_all
 
 from common.logging import VanillaLogger
 
@@ -53,6 +53,8 @@ parser.add_argument('--lr', default=0.1, type=float, help='initial learning rate
 parser.add_argument('--scheduler', default="cosine", type=str, help='lr scheduler')
 parser.add_argument('--sched', default=None, type=str)
 parser.add_argument('--aug', default=0, type=int, help='data-aug (0: none, 1: flips, 2: all)')
+parser.add_argument('--augmix', default=False, action='store_true', help='perform AugMix')
+parser.add_argument('--no-jsd', '-nj', action='store_true', help='Turn off JSD consistency loss.')
 
 parser.add_argument('--epochs', default=100, type=int)
 # for keeping the same LR sched across different samp sizes.
@@ -74,162 +76,12 @@ parser.add_argument('--comment', default=None)
 
 args = parser.parse_args()
 
-
-def recycle(iterable):
-    """Variant of itertools.cycle that does not save iterates."""
-    while True:
-        for i in iterable:
-            yield i
-
-
-
-def cuda_transfer(images, target):
-    images = images.cuda(non_blocking=True)
-    target = target.cuda(non_blocking=True)
-    if args.half: images = images.half()
-    return images, target
-
-def mse_loss(output, y):
-    y_true = F.one_hot(y, 10).float()
-    return (output - y_true).pow(2).sum(-1).mean()
-
-def predict(loader, model):
-    # switch to evaluate mode
-    model.eval()
-    n = 0
-    predsAll = []
-    with torch.no_grad():
-        for i, (images, target) in enumerate(tqdm(loader)):
-            images, target = cuda_transfer(images, target)
-            output = model(images)
-
-            preds = output.argmax(1).long().cpu()
-            predsAll.append(preds)
-
-    preds = torch.cat(predsAll)
-    return preds
-
-
-def test_all(loader, model, criterion):
-    # switch to evaluate mode
-    model.eval()
-    aloss = AverageMeter('Loss')
-    aerr = AverageMeter('Error')
-    asoft = AverageMeter('SoftError')
-    mets = [aloss, aerr, asoft]
-
-    with torch.no_grad():
-        for i, (images, target) in enumerate(loader):
-            bs = len(images)
-            if torch.cuda.is_available():
-                images, target = cuda_transfer(images, target)
-            output = model(images)
-            loss = criterion(output, target)
-
-            err = (output.argmax(1) != target).float().mean().item()
-            p = F.softmax(output, dim=1) # [bs x 10] : softmax probabilties
-            p_corr = p.gather(1, target.unsqueeze(1)).squeeze() # [bs]: prob on the correct label
-            soft = (1-p_corr).mean().item()
-
-
-            aloss.update(loss.item(), bs)
-            aerr.update(err, bs)
-            asoft.update(soft, bs)
-
-    results = {m.name : m.avg for m in mets}
-    return results
-
-
-
-def get_dataset(dataset):
-    '''
-        Returns dataset and pre-transform (to process dataset into [-1, 1] torch tensor)
-    '''
-
-    noop = transforms.Compose([])
-    normalize = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-    uint_transform = transforms.Compose([
-            transforms.ToTensor(),
-            normalize]) # numpy unit8 --> [-1, 1] tensor
-
-    if dataset == 'cifar10':
-        return load_cifar(), noop
-    if dataset == 'cifar550':
-        return load_cifar550(), noop
-    if dataset == 'cifar5m':
-        return load_cifar5m(), uint_transform
-    if dataset == 'cifar100':
-        return load_cifar100(), noop
-    if dataset == 'pacs':
-        return load_pacs(), noop
-
-def add_noise(Y, p: float):
-    ''' Adds noise to Y, s.t. the label is wrong w.p. p '''
-    num_classes = torch.max(Y).item()+1
-    print('num classes: ', num_classes)
-    noise_dist = torch.distributions.categorical.Categorical(
-        probs=torch.tensor([1.0 - p] + [p / (num_classes-1)] * (num_classes-1)))
-    return (Y + noise_dist.sample(Y.shape)) % num_classes
-
-
-def get_data_aug(aug : int):
-    normalize = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-    unnormalize = transforms.Compose([
-        transforms.Normalize((0, 0, 0), (2, 2, 2)),
-        transforms.Normalize((-0.5, -0.5, -0.5), (1, 1, 1))
-    ])
-
-    if aug == 0:
-        print('data-aug: NONE')
-        return transforms.Compose([])
-    elif aug == 1:
-        print('data-aug: flips only')
-        return transforms.Compose(
-            [unnormalize,
-            transforms.ToPILImage(),
-            transforms.RandomHorizontalFlip(),
-            transforms.ToTensor(),
-            normalize
-            ])
-    elif aug == 2:
-        print('data-aug: full')
-        return transforms.Compose(
-            [unnormalize,
-            transforms.ToPILImage(),
-            transforms.RandomCrop(32, padding=4),
-            transforms.RandomHorizontalFlip(),
-            transforms.ToTensor(),
-            normalize
-            ])
-    elif aug == 3:
-        print('data-aug: full (reflect-crop)')
-        return transforms.Compose(
-            [unnormalize,
-            transforms.ToPILImage(),
-            transforms.RandomCrop(32, padding=4, padding_mode='reflect'),
-            transforms.RandomHorizontalFlip(),
-            transforms.ToTensor(),
-            normalize
-            ])
-    elif aug == 4:
-        print('data-aug: crop')
-        return transforms.Compose(
-            [unnormalize,
-            transforms.ToPILImage(),
-            transforms.RandomCrop(32, padding=4),
-            transforms.ToTensor(),
-            normalize
-            ])
-
-
 def make_loader(x, y, transform=None, batch_size=256):
     dataset = TransformingTensorDataset(x, y, transform=transform)
     loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size,
             shuffle=False, num_workers=args.workers, pin_memory=True)
     return loader
 
-def get_wandb_name(args):
-    return f'{args.arch}-{args.dataset} n={args.nsamps} aug={args.aug} iid={args.iid}'
 
 def main():
     ## argparsing hacks
@@ -255,6 +107,7 @@ def main():
     logger = VanillaLogger(args, wandb, hash=True)
 
     print('Loading datasets...')
+
     (X_tr, Y_tr, X_te, Y_te), preproc = get_dataset(args.dataset)
 
     # subsample
@@ -266,7 +119,23 @@ def main():
     Y_tr = add_noise(Y_tr, args.noise)
     Y_te = add_noise(Y_te, args.noise)
 
-    tr_set = TransformingTensorDataset(X_tr, Y_tr, transform=transforms.Compose([preproc, get_data_aug(args.aug)]))
+    if args.augmix:
+        train_transform = transforms.Compose(
+        [transforms.RandomHorizontalFlip(),
+        transforms.RandomCrop(32, padding=4), 
+        transforms.ToTensor(),
+        transforms.Normalize([0.5] * 3, [0.5] * 3)])
+        
+        preprocess = transforms.Compose(
+            [transforms.ToTensor(),
+            transforms.Normalize([0.5] * 3, [0.5] * 3)])
+        test_transform = preprocess
+
+        tr_set = AugMixDataset(X_tr, Y_tr, train_transform, args.no_jsd)
+
+    else:
+        tr_set = TransformingTensorDataset(X_tr, Y_tr, transform=transforms.Compose([preproc, get_data_aug(args.aug)]))
+    
     val_set = TransformingTensorDataset(X_te, Y_te, transform=preproc)
 
     tr_loader = torch.utils.data.DataLoader(tr_set, batch_size=args.batchsize,
@@ -304,8 +173,37 @@ def main():
         model.train()
         if torch.cuda.is_available():
             images, target = cuda_transfer(images, target)
-        output = model(images)
-        loss = criterion(output, target)
+
+        if args.augmix:
+            if args.no_jsd:
+                #images = images.cuda()
+                #targets = targets.cuda()
+                logits = model(images)
+                loss = F.cross_entropy(logits, target)
+            else:
+                images_all = torch.cat(images, 0).cuda()
+                #targets = targets.cuda()
+                logits_all = model(images_all)
+                logits_clean, logits_aug1, logits_aug2 = torch.split(
+                    logits_all, images[0].size(0))
+
+                # Cross-entropy is only computed on clean images
+                loss = F.cross_entropy(logits_clean, target)
+
+                p_clean, p_aug1, p_aug2 = F.softmax(
+                    logits_clean, dim=1), F.softmax(
+                        logits_aug1, dim=1), F.softmax(
+                            logits_aug2, dim=1)
+
+                # Clamp mixture distribution to avoid exploding KL divergence
+                p_mixture = torch.clamp((p_clean + p_aug1 + p_aug2) / 3., 1e-7, 1).log()
+                loss += 12 * (F.kl_div(p_mixture, p_clean, reduction='batchmean') +
+                                F.kl_div(p_mixture, p_aug1, reduction='batchmean') +
+                                F.kl_div(p_mixture, p_aug2, reduction='batchmean')) / 3.
+
+        else:
+            output = model(images)
+            loss = criterion(output, target)
 
         n_tot += len(images)
 

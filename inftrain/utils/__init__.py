@@ -306,3 +306,6 @@ def make_loader_cifar10_1(args):
             num_workers=args.workers,
             pin_memory=True)
     return loader
+
+def get_wandb_name(args):
+    return f'{args.arch}-{args.dataset} n={args.nsamps} aug={args.aug} iid={args.iid}'
