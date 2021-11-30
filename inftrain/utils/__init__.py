@@ -13,7 +13,7 @@ import torch.nn.functional as F
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 
-from common.datasets import load_cifar, TransformingTensorDataset, get_cifar_data_aug, load_cifar500, load_cifar10_1
+from common.datasets import load_cifar, TransformingTensorDataset, get_cifar_data_aug, load_cifar500, load_cifar10_1, load_cifar5m
 import common.models32 as models
 
 

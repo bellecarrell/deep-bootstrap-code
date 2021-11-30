@@ -131,7 +131,7 @@ def main():
             transforms.Normalize([0.5] * 3, [0.5] * 3)])
         test_transform = preprocess
 
-        tr_set = AugMixDataset(X_tr, Y_tr, train_transform, args.no_jsd)
+        tr_set = AugMixDataset(X_tr, Y_tr, preproc, args.no_jsd)
 
     else:
         tr_set = TransformingTensorDataset(X_tr, Y_tr, transform=transforms.Compose([preproc, get_data_aug(args.aug)]))
