@@ -54,8 +54,32 @@ parser.add_argument('--scheduler', default="cosine", type=str, help='lr schedule
 parser.add_argument('--sched', default=None, type=str)
 parser.add_argument('--aug', default=0, type=int, help='data-aug (0: none, 1: flips, 2: all)')
 parser.add_argument('--augmix', default=False, action='store_true', help='perform AugMix')
-parser.add_argument('--no-jsd', '-nj', action='store_true', help='Turn off JSD consistency loss.')
-
+# AugMix options
+parser.add_argument(
+    '--mixture-width',
+    default=3,
+    type=int,
+    help='Number of augmentation chains to mix per augmented example')
+parser.add_argument(
+    '--mixture-depth',
+    default=-1,
+    type=int,
+    help='Depth of augmentation chains. -1 denotes stochastic depth in [1, 3]')
+parser.add_argument(
+    '--aug-severity',
+    default=3,
+    type=int,
+    help='Severity of base augmentation operators')
+parser.add_argument(
+    '--no-jsd',
+    '-nj',
+    action='store_true',
+    help='Turn off JSD consistency loss.')
+parser.add_argument(
+    '--all-ops',
+    '-all',
+    action='store_true',
+    help='Turn on all operations (+brightness,contrast,color,sharpness).')
 parser.add_argument('--epochs', default=100, type=int)
 # for keeping the same LR sched across different samp sizes.
 parser.add_argument('--nbatches', default=None, type=int, help='Total num. batches to train for. If specified, overrides EPOCHS.')
@@ -160,7 +184,7 @@ def main():
             transforms.Normalize([0.5] * 3, [0.5] * 3)])
         test_transform = preprocess
 
-        tr_set = AugMixDataset(X_tr, Y_tr, preproc, args.no_jsd)
+        tr_set = AugMixDataset(X_tr, Y_tr, preproc, args)
 
     else:
         tr_set = TransformingTensorDataset(X_tr, Y_tr, transform=transforms.Compose([preproc, get_data_aug(args.aug)]))
