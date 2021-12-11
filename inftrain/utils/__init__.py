@@ -154,10 +154,10 @@ def recycle(iterable):
 
 
 
-def cuda_transfer(images, target):
+def cuda_transfer(images, target, half=False):
     images = images.cuda(non_blocking=True)
     target = target.cuda(non_blocking=True)
-    if args.half: images = images.half()
+    if half: images = images.half()
     return images, target
 
 def mse_loss(output, y):
@@ -181,7 +181,7 @@ def predict(loader, model):
     return preds
 
 
-def test_all(loader, model, criterion):
+def test_all(loader, model, criterion, half=False):
     # switch to evaluate mode
     model.eval()
     aloss = AverageMeter('Loss')
@@ -193,7 +193,7 @@ def test_all(loader, model, criterion):
         for i, (images, target) in enumerate(loader):
             bs = len(images)
             if torch.cuda.is_available():
-                images, target = cuda_transfer(images, target)
+                images, target = cuda_transfer(images, target, half=half)
             output = model(images)
             loss = criterion(output, target)
 

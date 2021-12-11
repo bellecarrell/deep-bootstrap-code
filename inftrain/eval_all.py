@@ -215,7 +215,7 @@ def main():
 
         d.update({'batch_num' : step})
         for name, test_loader in test_loaders.items():
-            results = test_all(test_loader, model, criterion)
+            results = test_all(test_loader, model, criterion, half=args.half)
             for k, v in results.items():
                 print(f'{dataset_logs[args.eval_dataset]} {k} : {v}')
 
@@ -233,7 +233,7 @@ def main():
             d.update(mean_vals)
 
         if step != -1:
-            logger.log_scalars(d)
+            logger.log_scalars(d, step=step)
         else:
             logger.wandb.summary.update(d)
 
