@@ -1,9 +1,14 @@
 #!/bin/bash
 
-BASE_MODELS_DIR=/expanse/lustre/projects/csd697/nmallina/bootstrap/models/aug2-cifar5m-base-models/d9f09x6c
+BASE_PROJ=aug2-cifar5m-base-models
+BASE_RUN_ID=d9f09x6c
+BASE_MODELS_DIR=/expanse/lustre/projects/csd697/nmallina/bootstrap/models/${BASE_PROJ}/${BASE_RUN_ID}
 mkdir -p local_logs
 RUN_ID_TAG="n=5000, aug=2, iid=False"
 NUM_CONCURRENT=4
+
+TMP_COMPLETED_DIR=/expanse/lustre/projects/csd697/nmallina/bootstrap/tmp_completed/${BASE_PROJ}/${BASE_RUN_ID}
+mkdir -p $TMP_COMPLETED_DIR
 
 idx=0
 for d in ${BASE_MODELS_DIR}/*/ ; do
@@ -30,4 +35,6 @@ for d in ${BASE_MODELS_DIR}/*/ ; do
     echo "waiting to complete.."
     wait
   fi
+  mv $d $TMP_COMPLETED_DIR/$base
 done
+# mv $TMP_COMPLETED_DIR/* $BASE_MODELS_DIR

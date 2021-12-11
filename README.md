@@ -23,3 +23,11 @@ Newly added args:
 ### Fine-tuning
 
 `python -m inftrain.finetune --proj finetune-test --wandb_mode offline --k 4 --pretrained /path/to/model.pt --aug 4`
+
+### Evaluation
+
+```
+python -m inftrain.eval_all --proj aug2-base-cifar10.1-eval --datadir /home/nmallina/tmp/data --eval-dataset cifar10_1 --pretrained /expanse/lustre/projects/csd697/nmallina/bootstrap/models/aug2-cifar5m-base-models/d9f09x6c --batchsize 256
+```
+
+after cloning: `https://github.com/modestyachts/CIFAR-10.1` into `<datadir>`

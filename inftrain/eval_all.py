@@ -39,6 +39,10 @@ parser = argparse.ArgumentParser(description='vanilla testing')
 parser.add_argument('--proj', default='test-soft', type=str, help='project name')
 parser.add_argument('--dataset', default='cifar5m', type=str, help='dataset model was trained on')
 parser.add_argument('--eval-dataset', default='base_cifar10_train', type=str, choices=['base_cifar10_train', 'base_cifar10_val', 'base_cifar10_test', 'cifar10c', 'cifar10_1'])
+parser.add_argument('--corr', default='', type=str)
+parser.add_argument('--resume', default=0, type=int, help='resume at step')
+parser.add_argument('--id', default='', type=str, help='wandb id to resume')
+
 parser.add_argument('--nsamps', default=50000, type=int, help='num. train samples')
 parser.add_argument('--batchsize', default=128, type=int)
 parser.add_argument('--iid', default=False, action='store_true', help='simulate infinite samples (fresh samples each batch)')
@@ -110,6 +114,8 @@ def get_loaders():
         test_transform = preprocess
         test_loaders = {}
         for corruption in corruptions:
+            if args.corr and args.corr != corruption:
+                continue
             # Reference to original data is mutated
             test_data = datasets.CIFAR10(args.datadir, train=False, transform=test_transform, download=True)
             base_path = os.path.expanduser(args.datadir) + '/cifar/CIFAR-10-C/'
@@ -121,7 +127,7 @@ def get_loaders():
                 batch_size=args.batchsize,
                 shuffle=False,
                 num_workers=args.workers,
-                pin_memory=True)        
+                pin_memory=True)
             test_loaders[corruption] = test_loader
         return test_loaders
     elif args.eval_dataset == 'cifar10_1':
@@ -139,7 +145,7 @@ def get_loaders():
                 batch_size=args.batchsize,
                 shuffle=False,
                 num_workers=args.workers,
-                pin_memory=True) 
+                pin_memory=True)
         return {default_subset: test_loader}
 
 def get_step(f):
@@ -160,7 +166,11 @@ def main():
     if args.pretrained == 'None':
         args.pretrained = None # hack for caliban
 
-    wandb.init(project=args.proj, entity='deep-bootstrap2')
+    if args.resume:
+        id = args.id if args.id else get_run_id()
+        wandb.init(project=args.proj, entity='deep-bootstrap2', id=id, resume='allow')
+    else:
+        wandb.init(project=args.proj, entity='deep-bootstrap2')
     wandb.run.name = wandb.run.id  + " - " + get_wandb_name(args)
     cudnn.benchmark = True
 
@@ -183,6 +193,8 @@ def main():
     steps.sort()
 
     for step in steps:
+        if step < args.resume:
+            continue
 
         f = f'{args.pretrained}/step{step:06}/model.pt'
 
@@ -210,9 +222,9 @@ def main():
             if args.eval_dataset == 'cifar10c':
                 for k, v in results.items():
                     d.update({ f'{dataset_logs[args.eval_dataset]} {name} {k}' : v})
-                
+
                     mean_vals[f'{dataset_logs[args.eval_dataset]} {k}'].append(v)
-            else: 
+            else:
                 d.update({ f'{dataset_logs[args.eval_dataset]} {k}' : v for k, v in results.items()})
 
 
