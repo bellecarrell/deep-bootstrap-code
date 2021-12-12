@@ -282,7 +282,7 @@ def main():
         kshot_Y_tr = []
         for cl in classes:
             cl_indices = torch.where(Y_tr == cl)
-            kshot_X_tr.append(X_tr[:args.nshots])
+            kshot_X_tr.append(X_tr[cl_indices][:args.nshots])
             kshot_Y_tr.append(torch.tensor([cl]*args.nshots))
             # I = np.random.permutation(len(cl_indices[0]))[:args.nshots]
             # kshot_X_tr.append(X_tr[I])
@@ -290,6 +290,7 @@ def main():
         X_tr = torch.vstack(kshot_X_tr)
         Y_tr = torch.hstack(kshot_Y_tr)
         args.nsamps = X_tr.size(0)
+        print(X_tr.size() Y_tr.size())
 
     # Add noise (optionally)
     Y_tr = add_noise(Y_tr, args.noise)
