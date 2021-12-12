@@ -35,7 +35,7 @@ parser = argparse.ArgumentParser(description='fine-tuning models')
 parser.add_argument('--proj', default='test-soft', type=str, help='project name')
 parser.add_argument('--wandb_mode', default='online', type=str, help='[online, offline]')
 parser.add_argument('--run_id_tag', default='', type=str)
-parser.add_argument('--dataset', default='pacs', type=str)
+parser.add_argument('--dataset', default='cifar100', type=str)
 parser.add_argument('--nsamps', default=-1, type=int, help='num. train samples, -1 uses the entire dataset')
 parser.add_argument('--nshots', default=-1, type=int, help='num. train samples per-class if using k-shot training, -1 does not do stratified subsampling')
 parser.add_argument('--batchsize', default=128, type=int)
@@ -222,6 +222,23 @@ def get_data_aug(aug : int):
             normalize
             ])
 
+def parse_wandb_run_id_tag(run_id_tag):
+    '''
+    If run_id_tag is of the form 'n=%d, aug=%d, iid=%s' the values
+    will get parsed out and stored as wandb summary values 
+    This can be helpful for plotting purposes to store necessary
+    variables from upstream processes.
+    '''
+    _s = run_id_tag.split(',')
+    if len(_s) < 4:
+        return -1, -1, -1, 'N/A'
+    pretrain_step = int(_s[0].strip()[4:])
+    pretrain_n = int(_s[1].strip().split('=')[1])
+    pretrain_aug = int(_s[2].strip().split('=')[1])
+    pretrain_iid = _s[3].strip().split('=')[1]
+
+    return pretrain_step, pretrain_n, pretrain_aug, pretrain_iid
+
 def main():
     ## argparsing hacks
     if args.sched is not None:
@@ -239,6 +256,16 @@ def main():
     # init logging
     logger = VanillaLogger(args, wandb, hash=True)
 
+    pretrain_step, pretrain_n, pretrain_aug, pretrain_iid = parse_wandb_run_id_tag(args.run_id_tag)
+    pt_summary = {
+        'pretrain_step': pretrain_step,
+        'pretrain_n': pretrain_n,
+        'pretrain_aug': pretrain_aug,
+        'pretrain_iid': pretrain_iid
+    }
+    logger.log_summary(pt_summary)
+    wandb.save()
+
     print('Loading datasets...')
     (X_tr, Y_tr, X_te, Y_te), preproc = get_dataset(args.dataset)
 
@@ -249,19 +276,21 @@ def main():
         args.nsamps = X_tr.size(0)
 
     if args.nshots > 0:
-        classes, class_counts = np.unique(Y_tr, return_counts=True)
-        if not class_counts >= args.nshots:
+        print(f'Using {args.nshots}-shot classification') 
+        classes, class_counts = torch.unique(Y_tr, return_counts=True)
+        if torch.any(class_counts < args.nshots):
             raise Exception(f'not enough data to do {args.nshots}-shot subsampling of training data')
 
         kshot_X_tr = []
         kshot_Y_tr = []
         for cl in classes:
-            cl_indices = np.where(Y_tr == cl)
-            I = np.random.permutation(len(cl_indices))[:args.nshots]
+            cl_indices = torch.where(Y_tr == cl)
+            I = np.random.permutation(len(cl_indices[0]))[:args.nshots]
             kshot_X_tr.append(X_tr[I])
-            kshot_Y_tr.append(np.array([cl]*args.nshots))
-        X_tr = np.vstack(kshot_X_tr)
-        Y_tr = np.hstack(kshot_Y_tr)
+            kshot_Y_tr.append(torch.tensor([cl]*args.nshots))
+        X_tr = torch.vstack(kshot_X_tr)
+        Y_tr = torch.hstack(kshot_Y_tr)
+        args.nsamps = X_tr.size(0)
 
     # Add noise (optionally)
     Y_tr = add_noise(Y_tr, args.noise)

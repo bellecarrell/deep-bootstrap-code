@@ -11,7 +11,7 @@ from os import listdir
 import pathlib
 import json
 import h5py
-import augmentations
+import common.datasets.augmentations as augmentations
 
 def dload(gpath, localdir='~/tmp/data/', crc=True, overwrite=False):
     ''' Downloads object from GCS into localdir (if not exists), and returns the local filename'''
