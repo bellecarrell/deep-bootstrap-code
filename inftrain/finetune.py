@@ -225,7 +225,7 @@ def get_data_aug(aug : int):
 def parse_wandb_run_id_tag(run_id_tag):
     '''
     If run_id_tag is of the form 'n=%d, aug=%d, iid=%s' the values
-    will get parsed out and stored as wandb summary values 
+    will get parsed out and stored as wandb summary values
     This can be helpful for plotting purposes to store necessary
     variables from upstream processes.
     '''
@@ -273,7 +273,7 @@ def main():
         args.nsamps = X_tr.size(0)
 
     if args.nshots > 0:
-        print(f'Using {args.nshots}-shot classification') 
+        print(f'Using {args.nshots}-shot classification')
         classes, class_counts = torch.unique(Y_tr, return_counts=True)
         if torch.any(class_counts < args.nshots):
             raise Exception(f'not enough data to do {args.nshots}-shot subsampling of training data')
@@ -282,9 +282,11 @@ def main():
         kshot_Y_tr = []
         for cl in classes:
             cl_indices = torch.where(Y_tr == cl)
-            I = np.random.permutation(len(cl_indices[0]))[:args.nshots]
-            kshot_X_tr.append(X_tr[I])
+            kshot_X_tr.append(X_tr[:args.nshots])
             kshot_Y_tr.append(torch.tensor([cl]*args.nshots))
+            # I = np.random.permutation(len(cl_indices[0]))[:args.nshots]
+            # kshot_X_tr.append(X_tr[I])
+            # kshot_Y_tr.append(torch.tensor([cl]*args.nshots))
         X_tr = torch.vstack(kshot_X_tr)
         Y_tr = torch.hstack(kshot_Y_tr)
         args.nsamps = X_tr.size(0)
