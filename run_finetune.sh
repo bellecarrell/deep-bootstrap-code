@@ -5,7 +5,7 @@ BASE_RUN_ID=d9f09x6c
 BASE_MODELS_DIR=/expanse/lustre/projects/csd697/nmallina/bootstrap/models/${BASE_PROJ}/${BASE_RUN_ID}
 mkdir -p local_logs
 RUN_ID_TAG="n=5000, aug=2, iid=False"
-NUM_CONCURRENT=4
+NUM_CONCURRENT=6
 
 #TMP_COMPLETED_DIR=/expanse/lustre/projects/csd697/nmallina/bootstrap/tmp_completed/${BASE_PROJ}/${BASE_RUN_ID}
 #mkdir -p $TMP_COMPLETED_DIR
@@ -24,11 +24,11 @@ for d in ${BASE_MODELS_DIR}/*/ ; do
          --dataset cifar100 \
          --nshots 25 \
          --run_id_tag "$base, ${RUN_ID_TAG}" \
-         --k 4 \
+         --k 8 \
          --pretrained $d/model.pt \
-         --aug 8 \
+         --aug 4 \
          --lr 1e-3 \
-         --epochs 10 \
+         --epochs 30 \
          --fast \
          --opt adamw >local_logs/$base.log 2>&1 &
   idx=$((idx+1))

@@ -257,14 +257,11 @@ def main():
     logger = VanillaLogger(args, wandb, hash=True)
 
     pretrain_step, pretrain_n, pretrain_aug, pretrain_iid = parse_wandb_run_id_tag(args.run_id_tag)
-    pt_summary = {
-        'pretrain_step': pretrain_step,
-        'pretrain_n': pretrain_n,
-        'pretrain_aug': pretrain_aug,
-        'pretrain_iid': pretrain_iid
-    }
-    logger.log_summary(pt_summary)
-    wandb.save()
+    wandb.run.summary['pretrain_step'] = pretrain_step
+    wandb.run.summary['pretrain_n'] = pretrain_n
+    wandb.run.summary['pretrain_aug'] = pretrain_aug
+    wandb.run.summary['pretrain_iid'] = pretrain_iid
+    wandb.run.save()
 
     print('Loading datasets...')
     (X_tr, Y_tr, X_te, Y_te), preproc = get_dataset(args.dataset)
