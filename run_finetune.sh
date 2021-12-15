@@ -6,8 +6,8 @@ BASE_MODELS_DIR=/expanse/lustre/projects/csd697/nmallina/bootstrap/models/${BASE
 mkdir -p local_logs
 RUN_ID_TAG="n=5000, aug=2, iid=False"
 NUM_CONCURRENT=6
-# 0-indexed so effectively running every 64 saved steps
-NUM_SKIP=63
+# 0-indexed
+NUM_SKIP=127
 
 #TMP_COMPLETED_DIR=/expanse/lustre/projects/csd697/nmallina/bootstrap/tmp_completed/${BASE_PROJ}/${BASE_RUN_ID}
 #mkdir -p $TMP_COMPLETED_DIR
