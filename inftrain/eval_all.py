@@ -40,6 +40,7 @@ parser.add_argument('--proj', default='test-soft', type=str, help='project name'
 parser.add_argument('--dataset', default='cifar5m', type=str, help='dataset model was trained on')
 parser.add_argument('--eval-dataset', default='base_cifar10_train', type=str, choices=['base_cifar10_train', 'base_cifar10_val', 'base_cifar10_test', 'cifar10c', 'cifar10_1'])
 parser.add_argument('--corr', default='', type=str)
+parser.add_argument('--eval-id-vs-ood', dest='eval_id_vs_ood', default=False, action='store_true')
 parser.add_argument('--resume', default=0, type=int, help='resume at step')
 parser.add_argument('--id', default='', type=str, help='wandb id to resume')
 
@@ -69,7 +70,7 @@ args = parser.parse_args()
 dataset_names = {'base_cifar10_train': 'cifar10', 'base_cifar10_val': 'cifar10'}
 
 # dict mapping dataset eval names to wandb logging names
-dataset_logs = {'base_cifar10_train': 'Train', 'base_cifar10_val': 'Test', 'base_cifar10_test': 'CF10', 'cifar10_1': 'CF10.1', 'cifar10c': 'CF10-C'}
+dataset_logs = {'base_cifar10_train': 'Train', 'base_cifar10_val': 'Test', 'base_cifar10_test': 'CF10', 'cifar10_1': 'CF10.1', 'cifar10c': 'CF10-C', 'cifar5m': 'CF5m'}
 
 corruptions = [
     'gaussian_noise', 'shot_noise', 'impulse_noise', 'defocus_blur',
@@ -179,6 +180,12 @@ def main():
 
     print('Loading dataset...')
     test_loaders = get_loaders()
+
+    if args.eval_id_vs_ood:
+        (_, _, X_te, Y_te), preproc = get_dataset('cifar5m')
+        cf5m_val_set = TransformingTensorDataset(X_te, Y_te, transform=preproc)
+        cf5m_test_loader = torch.utils.data.DataLoader(cf5m_val_set, batch_size=256,
+            shuffle=False, num_workers=args.workers, pin_memory=True)
     print('Done loading.')
 
     # define loss function (criterion)
@@ -210,6 +217,10 @@ def main():
         print(f'Evaluating model {get_wandb_name(args)} at step {step}')
 
         d = {}
+        if args.eval_id_vs_ood:
+            test_cf5m = test_all(cf5m_test_loader, model, criterion, half=args.half)
+            d.update({f'CF-5m Test {k}' : v for k, v in test_cf5m.items()})
+
         if args.eval_dataset == 'cifar10c':
             mean_vals = defaultdict(list)
 
