@@ -1,13 +1,13 @@
 #!/bin/bash
 
 BASE_PROJ=aug2-cifar5m-base-models
-BASE_RUN_ID=d9f09x6c
+BASE_RUN_ID=1uvcp801
 BASE_MODELS_DIR=/expanse/lustre/projects/csd697/nmallina/bootstrap/models/${BASE_PROJ}/${BASE_RUN_ID}
 mkdir -p local_logs
-RUN_ID_TAG="n=5000, aug=2, iid=False"
+RUN_ID_TAG="n=50000, aug=2, iid=True"
 NUM_CONCURRENT=6
 # 0-indexed
-NUM_SKIP=127
+NUM_SKIP=31
 
 #TMP_COMPLETED_DIR=/expanse/lustre/projects/csd697/nmallina/bootstrap/tmp_completed/${BASE_PROJ}/${BASE_RUN_ID}
 #mkdir -p $TMP_COMPLETED_DIR
@@ -15,7 +15,7 @@ NUM_SKIP=127
 skip_idx=0
 idx=0
 for d in ${BASE_MODELS_DIR}/*/ ; do
-  if $((  $skip_idx % $NUM_SKIP  == 0 )); then
+  if ((  $skip_idx % $NUM_SKIP  == 0 )); then
     base=$(basename -- "$d")
     # dir=$(dirname -- "$d")
     # echo "$d"
@@ -32,7 +32,7 @@ for d in ${BASE_MODELS_DIR}/*/ ; do
            --pretrained $d/model.pt \
            --aug 4 \
            --lr 1e-3 \
-           --epochs 30 \
+           --epochs 20 \
            --fast \
            --opt adamw >local_logs/$base.log 2>&1 &
     idx=$((idx+1))
