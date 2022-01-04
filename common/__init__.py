@@ -9,16 +9,37 @@ from .datasets import dload, download_dir
 import subprocess
 
 import pickle
+import gcsfs
 import glob as pyglob
 
-def gsave(x, filepath):
+def save(x, filepath):
     with open(filepath, 'wb') as f:
         pickle.dump(x, f)
 
-def gload(filepath):
+def load(filepath):
     with open(filepath, 'rb') as f:
         x = pickle.load(f)
     return x
+
+def gopen(gsname, mode='rb'):
+    fs = gcsfs.GCSFileSystem()
+    if gsname.startswith('gs://'):
+        gsname = gsname[len('gs://'):]
+    return fs.open(gsname, mode)
+
+def gsave(x, gsname):
+    with gopen(gsname, 'wb') as f:
+        pickle.dump(x, f)
+        
+def gload(gsname):
+    with gopen(gsname, 'rb') as f:
+        x = pickle.load(f)
+    return x
+
+def glob(gspath):
+    fs = gcsfs.GCSFileSystem()
+    return fs.glob(gspath)
+
 
 def glob(filepath):
     return pyglob.glob(filepath)
@@ -35,6 +56,15 @@ def save_model(model, filepath):
     else:
         local_path = filepath
     torch.save(unwrap_model(model).state_dict(), local_path)
+
+def gsave_model(model, gcs_path):
+    def unwrap_model(model): # unwraps DataParallel, etc
+        return model.module if hasattr(model, 'module') else model
+    local_path = './model.pt'
+    torch.save(unwrap_model(model).state_dict(), local_path)
+    subprocess.call(f'gsutil -m -o GSUtil:parallel_composite_upload_threshold=150M cp {local_path} {gcs_path}', shell=True)
+    subprocess.call(f'rm {local_path}', shell=True)
+
 
 def load_state_dict(model, filepath, crc=False):
     #local_path = dload(filepath, overwrite=True, crc=crc)

@@ -5,7 +5,7 @@ from torch.utils.tensorboard import SummaryWriter
 import string
 import subprocess
 
-from common import gsave, gload
+from common import gsave, gload, save, load, gsave_model
 from common import save_model as _save_model
 
 
@@ -36,7 +36,7 @@ class VanillaLogger():
     '''
         Logs to GCS, wandb (internal).
     '''
-    def __init__(self, args, wandb, expanse_root='/expanse/lustre/projects/csd697/bellecarrell/bootstrap', hash=False):
+    def __init__(self, args, wandb, expanse_root='/expanse/lustre/projects/csd697/bellecarrell/bootstrap', gcs_root='gs://deepboot',hash=False, log_remote=False):
 
         if hash: args.hash = _run_hash(args) # for easy run-grouping
         self.wandb = wandb
@@ -44,9 +44,13 @@ class VanillaLogger():
         wandb.config.update(args,allow_val_change=True) # set wandb config to arguments
         self.run_id = wandb.run.id
         args.run_id = self.run_id
+        self.log_remote = log_remote
 
         self.expanse_logdir = f'{expanse_root}/logs/{proj_name}/{self.run_id}'
         self.expanse_modeldir = f'{expanse_root}/models/{proj_name}/{self.run_id}'
+
+        self.gcs_logdir = f'{gcs_root}/logs/{proj_name}/{self.run_id}'
+        self.gcs_modeldir = f'{gcs_root}/models/{proj_name}/{self.run_id}'
 
         # run_id is always uniquely generated so there are no problems in overwriting
         if not os.path.isdir(self.expanse_logdir):
@@ -66,16 +70,27 @@ class VanillaLogger():
         self.scalars_log = []
 
     def save(self, obj, ext):
-        gsave(obj, f'{self.expanse_logdir}/{ext}')
+        if self.log_remote:
+            gsave(obj, f'{self.gcs_logdir}/{ext}')    
+        else:
+            save(obj, f'{self.expanse_logdir}/{ext}')
 
     def save_model(self, model):
-        expanse_path = f'{self.expanse_modeldir}/model.pt'
-        _save_model(model, expanse_path)
+        if self.log_remote:
+            path = f'{self.gcs_modeldir}/model.pt'
+            gsave_model(model, path)
+        else:
+            path = f'{self.expanse_modeldir}/model.pt'
+            _save_model(model, path)
 
     def save_model_step(self, step, model):
-        os.makedirs(f'{self.expanse_modeldir}/step{step:06}')
-        expanse_path = f'{self.expanse_modeldir}/step{step:06}/model.pt'
-        _save_model(model, expanse_path)
+        if self.log_remote:
+            path = f'{self.gcs_modeldir}/step{step:06}/model.pt'
+            gsave_model(model, path)
+        else:
+            os.makedirs(f'{self.expanse_modeldir}/step{step:06}')
+            path = f'{self.expanse_modeldir}/step{step:06}/model.pt'
+            _save_model(model, path)
 
     def log_root(self, D : dict):
         for k, v in D.items():
