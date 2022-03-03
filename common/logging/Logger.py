@@ -8,7 +8,6 @@ import subprocess
 from common import gsave, gload, save, load, gsave_model
 from common import save_model as _save_model
 
-
 def get_guid(k=6):
     return ''.join(np.random.choice(list(string.ascii_lowercase), size=k))
 
@@ -71,7 +70,7 @@ class VanillaLogger():
 
     def save(self, obj, ext):
         if self.log_remote:
-            gsave(obj, f'{self.gcs_logdir}/{ext}')    
+            gsave(obj, f'{self.gcs_logdir}/{ext}')
         else:
             save(obj, f'{self.expanse_logdir}/{ext}')
 

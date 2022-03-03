@@ -14,7 +14,7 @@ import torch.nn.functional as F
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 
-from common.datasets import load_cifar, TransformingTensorDataset, get_cifar_data_aug, load_cifar500, load_cifar10_1, load_cifar5m
+from common.datasets import load_cifar, TransformingTensorDataset, get_cifar_data_aug, load_cifar500, load_cifar10_1, load_cifar5m, load_cifar5m_test
 import common.models32 as models
 
 
@@ -256,7 +256,7 @@ def test_all(loader, model, criterion, calibration_metrics=False):
 
     return results
 
-def get_dataset(dataset):
+def get_dataset(dataset, test_only=False):
     '''
         Returns dataset and pre-transform (to process dataset into [-1, 1] torch tensor)
     '''
@@ -272,6 +272,8 @@ def get_dataset(dataset):
     if dataset == 'cifar550':
         return load_cifar550(), noop
     if dataset == 'cifar5m':
+        if test_only:
+            return load_cifar5m_test(), uint_transform
         return load_cifar5m(), uint_transform
 
 

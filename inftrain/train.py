@@ -21,6 +21,7 @@ import torch.backends.cudnn as cudnn
 from torch.utils.data import TensorDataset
 import torch.optim as optim
 from torch.optim import lr_scheduler
+from yaml import safe_load
 
 from .utils import AverageMeter
 from common.datasets import load_cifar, TransformingTensorDataset, get_cifar_data_aug, AugMixDataset
@@ -156,8 +157,11 @@ def main():
     if torch.cuda.is_available():
         model.cuda()
 
+    with open('config.yml', 'r') as fp:
+        config = safe_load(fp)
+
     # init logging
-    logger = VanillaLogger(args, wandb, hash=True)
+    logger = VanillaLogger(args, wandb, expanse_root=config['expanse_root'], hash=True)
 
     print('Loading datasets...')
 
@@ -175,17 +179,10 @@ def main():
     if args.augmix:
         train_transform = transforms.Compose(
         [transforms.RandomHorizontalFlip(),
-<<<<<<< HEAD
         transforms.RandomCrop(32, padding=4),
         transforms.ToTensor(),
         transforms.Normalize([0.5] * 3, [0.5] * 3)])
 
-=======
-        transforms.RandomCrop(32, padding=4),
-        transforms.ToTensor(),
-        transforms.Normalize([0.5] * 3, [0.5] * 3)])
-
->>>>>>> 1dabd68cd596063f65dc63fb10dc16884d3b725e
         preprocess = transforms.Compose(
             [transforms.ToTensor(),
             transforms.Normalize([0.5] * 3, [0.5] * 3)])
@@ -195,11 +192,7 @@ def main():
 
     else:
         tr_set = TransformingTensorDataset(X_tr, Y_tr, transform=transforms.Compose([preproc, get_data_aug(args.aug)]))
-<<<<<<< HEAD
 
-=======
-
->>>>>>> 1dabd68cd596063f65dc63fb10dc16884d3b725e
     val_set = TransformingTensorDataset(X_te, Y_te, transform=preproc)
 
     tr_loader = torch.utils.data.DataLoader(tr_set, batch_size=args.batchsize,
@@ -240,7 +233,6 @@ def main():
 
         if args.augmix:
             if args.no_jsd:
-<<<<<<< HEAD
                 #images = images.cuda()
                 #targets = targets.cuda()
                 logits = model(images)
@@ -248,12 +240,7 @@ def main():
             else:
                 images_all = torch.cat(images, 0).cuda()
                 #targets = targets.cuda()
-=======
-                logits = model(images)
-                loss = F.cross_entropy(logits, target)
-            else:
-                images_all = torch.cat(images, 0)
->>>>>>> 1dabd68cd596063f65dc63fb10dc16884d3b725e
+
                 logits_all = model(images_all)
                 logits_clean, logits_aug1, logits_aug2 = torch.split(
                     logits_all, images[0].size(0))

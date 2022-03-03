@@ -113,7 +113,7 @@ def get_loaders():
                 batch_size=args.batchsize,
                 shuffle=False,
                 num_workers=args.workers,
-                pin_memory=True)        
+                pin_memory=True)
             test_loaders[corruption] = test_loader
         return test_loaders
     elif args.eval_dataset == 'cifar10_1':
@@ -131,7 +131,7 @@ def get_loaders():
                 batch_size=args.batchsize,
                 shuffle=False,
                 num_workers=args.workers,
-                pin_memory=True) 
+                pin_memory=True)
         return {default_subset: test_loader}
 
 def main():
@@ -151,8 +151,11 @@ def main():
     if torch.cuda.is_available():
         model.cuda()
 
+    with open('config.yml', 'r') as fp:
+        config = safe_load(fp)
+
     # init logging
-    logger = VanillaLogger(args, wandb, hash=True)
+    logger = VanillaLogger(args, wandb, expanse_root=config['expanse_root'], hash=True)
 
     print('Loading dataset...')
     test_loaders = get_loaders()

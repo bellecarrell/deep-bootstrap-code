@@ -148,6 +148,12 @@ def get_loaders():
                 num_workers=args.workers,
                 pin_memory=True)
         return {default_subset: test_loader}
+    elif args.eval_dataset == 'cifar5m':
+        (X_te, Y_te), preproc = get_dataset('cifar5m', test_only=True)
+        val_set = TransformingTensorDataset(X_te, Y_te, transform=preproc)
+        test_loader = torch.utils.data.DataLoader(cf5m_val_set, batch_size=256,
+            shuffle=False, num_workers=args.workers, pin_memory=True)
+        return {default_subset: test_loader}
 
 def get_step(f):
     final_subdir = pathlib.PurePath(f).parent.name
@@ -175,14 +181,17 @@ def main():
         wandb.run.name = wandb.run.id  + " - " + get_wandb_name(args)
     cudnn.benchmark = True
 
+    with open('config.yml', 'r') as fp:
+        config = safe_load(fp)
+
     # init logging
-    logger = VanillaLogger(args, wandb, hash=True)
+    logger = VanillaLogger(args, wandb, expanse_root=config['expanse_root'], hash=True)
 
     print('Loading dataset...')
     test_loaders = get_loaders()
 
     if args.eval_id_vs_ood:
-        (_, _, X_te, Y_te), preproc = get_dataset('cifar5m')
+        (X_te, Y_te), preproc = get_dataset('cifar5m', test_only=True)
         cf5m_val_set = TransformingTensorDataset(X_te, Y_te, transform=preproc)
         cf5m_test_loader = torch.utils.data.DataLoader(cf5m_val_set, batch_size=256,
             shuffle=False, num_workers=args.workers, pin_memory=True)

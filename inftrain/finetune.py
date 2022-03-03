@@ -253,8 +253,11 @@ def main():
     wandb.run.save()
     cudnn.benchmark = True
 
+    with open('config.yml', 'r') as fp:
+        config = safe_load(fp)
+
     # init logging
-    logger = VanillaLogger(args, wandb, hash=True)
+    logger = VanillaLogger(args, wandb, expanse_root=config['expanse_root'], hash=True)
 
     pretrain_step, pretrain_n, pretrain_aug, pretrain_iid = parse_wandb_run_id_tag(args.run_id_tag)
     wandb.run.summary['pretrain_step'] = pretrain_step
