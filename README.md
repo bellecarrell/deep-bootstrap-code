@@ -8,6 +8,10 @@ The CIFAR-5m dataset is released at: https://github.com/preetum/cifar5m
 
 ## Expanse
 
+If you haven't already, create a file at the root directory called `config.yml` based on
+the provided `sample-config.yml` and specify your own data where needed, this is gitignore'd
+so it won't get checked in.
+
 Adapting codebase to use a local filesystem for logging and model storage, etc.
 
 Run command: `python -m inftrain.train --proj <wandb_proj_name>`
