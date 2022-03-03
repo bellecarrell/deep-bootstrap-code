@@ -41,6 +41,7 @@ parser.add_argument('--dataset', default='cifar5m', type=str, help='dataset mode
 parser.add_argument('--eval-dataset', default='base_cifar10_train', type=str, choices=['base_cifar10_train', 'base_cifar10_val', 'base_cifar10_test', 'cifar10c', 'cifar10_1'])
 parser.add_argument('--corr', default='', type=str)
 parser.add_argument('--eval-id-vs-ood', dest='eval_id_vs_ood', default=False, action='store_true')
+parser.add_argument('--eval-calibration-metrics', dest='eval_calibration_metrics', default=False, action='store_true')
 parser.add_argument('--resume', default=0, type=int, help='resume at step')
 parser.add_argument('--id', default='', type=str, help='wandb id to resume')
 
@@ -227,7 +228,7 @@ def main():
 
         d = {}
         if args.eval_id_vs_ood:
-            test_cf5m = test_all(cf5m_test_loader, model, criterion, half=args.half)
+            test_cf5m = test_all(cf5m_test_loader, model, criterion, half=args.half, calibration_metrics=args.eval_calibration_metrics)
             d.update({f'CF-5m Test {k}' : v for k, v in test_cf5m.items()})
 
         if args.eval_dataset == 'cifar10c':
@@ -235,7 +236,7 @@ def main():
 
         d.update({'batch_num' : step})
         for name, test_loader in test_loaders.items():
-            results = test_all(test_loader, model, criterion, half=args.half)
+            results = test_all(test_loader, model, criterion, half=args.half, calibration_metrics=args.eval_calibration_metrics)
             for k, v in results.items():
                 print(f'{dataset_logs[args.eval_dataset]} {k} : {v}')
 
