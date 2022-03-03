@@ -172,7 +172,7 @@ def main():
         wandb.init(project=args.proj, entity='deep-bootstrap2', id=id, resume='allow')
     else:
         wandb.init(project=args.proj, entity='deep-bootstrap2')
-    wandb.run.name = wandb.run.id  + " - " + get_wandb_name(args)
+        wandb.run.name = wandb.run.id  + " - " + get_wandb_name(args)
     cudnn.benchmark = True
 
     # init logging
@@ -200,7 +200,7 @@ def main():
     steps.sort()
 
     for step in steps:
-        if step < args.resume:
+        if step < args.resume or step % 1024 != 0:
             continue
 
         f = f'{args.pretrained}/step{step:06}/model.pt'

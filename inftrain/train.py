@@ -175,10 +175,17 @@ def main():
     if args.augmix:
         train_transform = transforms.Compose(
         [transforms.RandomHorizontalFlip(),
+<<<<<<< HEAD
         transforms.RandomCrop(32, padding=4),
         transforms.ToTensor(),
         transforms.Normalize([0.5] * 3, [0.5] * 3)])
 
+=======
+        transforms.RandomCrop(32, padding=4),
+        transforms.ToTensor(),
+        transforms.Normalize([0.5] * 3, [0.5] * 3)])
+
+>>>>>>> 1dabd68cd596063f65dc63fb10dc16884d3b725e
         preprocess = transforms.Compose(
             [transforms.ToTensor(),
             transforms.Normalize([0.5] * 3, [0.5] * 3)])
@@ -188,7 +195,11 @@ def main():
 
     else:
         tr_set = TransformingTensorDataset(X_tr, Y_tr, transform=transforms.Compose([preproc, get_data_aug(args.aug)]))
+<<<<<<< HEAD
 
+=======
+
+>>>>>>> 1dabd68cd596063f65dc63fb10dc16884d3b725e
     val_set = TransformingTensorDataset(X_te, Y_te, transform=preproc)
 
     tr_loader = torch.utils.data.DataLoader(tr_set, batch_size=args.batchsize,
@@ -229,6 +240,7 @@ def main():
 
         if args.augmix:
             if args.no_jsd:
+<<<<<<< HEAD
                 #images = images.cuda()
                 #targets = targets.cuda()
                 logits = model(images)
@@ -236,6 +248,12 @@ def main():
             else:
                 images_all = torch.cat(images, 0).cuda()
                 #targets = targets.cuda()
+=======
+                logits = model(images)
+                loss = F.cross_entropy(logits, target)
+            else:
+                images_all = torch.cat(images, 0)
+>>>>>>> 1dabd68cd596063f65dc63fb10dc16884d3b725e
                 logits_all = model(images_all)
                 logits_clean, logits_aug1, logits_aug2 = torch.split(
                     logits_all, images[0].size(0))
@@ -288,11 +306,12 @@ def main():
                 cf10_1_m = test_all(cifar10_1_loader, model, criterion)
                 d.update({ f'CF10.1 {k}' : v for k, v in cf10_1_m.items()})
 
-            if not args.iid:
+            if not args.iid and not args.augmix:
                 train_m = test_all(tr_loader, model, criterion)
                 d.update({ f'Train {k}' : v for k, v in train_m.items()})
 
                 print(f'Batch {i}.\t lr: {lr:.3f}\t Train Loss: {d["Train Loss"]:.4f}\t Train Error: {d["Train Error"]:.3f}\t Test Error: {d["Test Error"]:.3f}')
+
             else:
                 print(f'Batch {i}.\t lr: {lr:.3f}\t Test Error: {d["Test Error"]:.3f}')
 
@@ -303,7 +322,7 @@ def main():
             if args.save_at_k:
                 logger.save_model_step(i, model)
 
-        if args.save_model_step > 0 and (i+1) % args.save_model_step == 0:
+        if args.save_model_step > 0 and i % args.save_model_step == 0:
             logger.save_model_step(i, model)
 
         if (i+1) % args.batches_per_lr_step == 0:

@@ -12,6 +12,7 @@ import pathlib
 import json
 import h5py
 import common.datasets.augmentations as augmentations
+from PIL import Image
 
 def dload(gpath, localdir='~/tmp/data/', crc=True, overwrite=False):
     ''' Downloads object from GCS into localdir (if not exists), and returns the local filename'''
@@ -76,6 +77,11 @@ class AugMixDataset(torch.utils.data.Dataset):
 
   def __getitem__(self, i):
     x, y = self.X[i], self.Y[i]
+<<<<<<< HEAD
+=======
+    if self.args.dataset == 'cifar5m':
+        x = Image.fromarray(x)
+>>>>>>> 1dabd68cd596063f65dc63fb10dc16884d3b725e
     if self.no_jsd:
       return aug(x, self.preprocess, self.args), y
     else:

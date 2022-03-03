@@ -1,4 +1,5 @@
 #from google.cloud import storage
+import numpy as np
 import torch
 import torch.backends.cudnn as cudnn
 import subprocess
@@ -180,14 +181,51 @@ def predict(loader, model):
     preds = torch.cat(predsAll)
     return preds
 
+def expected_calibration_error(y_true, y_pred, num_bins=10):
+  pred_y = np.argmax(y_pred, axis=-1)
+  correct = (pred_y == y_true).astype(np.float32)
+  prob_y = np.max(y_pred, axis=-1)
 
-def test_all(loader, model, criterion, half=False):
+  b = np.linspace(start=0, stop=1.0, num=num_bins)
+  bins = np.digitize(prob_y, bins=b, right=True)
+
+  o = 0
+  for b in range(num_bins):
+    mask = bins == b
+    if np.any(mask):
+        o += np.abs(np.sum(correct[mask] - prob_y[mask]))
+
+  return o / y_pred.shape[0]
+
+def static_calibration_error(y_true, y_pred, num_bins=10):
+  classes = y_pred.shape[-1]
+
+  o = 0
+  for cur_class in range(classes):
+      correct = (cur_class == y_true).astype(np.float32)
+      prob_y = y_pred[..., cur_class]
+
+      b = np.linspace(start=0, stop=1.0, num=num_bins)
+      bins = np.digitize(prob_y, bins=b, right=True)
+
+      for b in range(num_bins):
+        mask = bins == b
+        if np.any(mask):
+            o += np.abs(np.sum(correct[mask] - prob_y[mask]))
+
+  return o / (y_pred.shape[0] * classes)
+
+def test_all(loader, model, criterion, calibration_metrics=False):
     # switch to evaluate mode
     model.eval()
     aloss = AverageMeter('Loss')
     aerr = AverageMeter('Error')
     asoft = AverageMeter('SoftError')
     mets = [aloss, aerr, asoft]
+
+    if calibration_metrics:
+        y_pred = []
+        y_true = []
 
     with torch.no_grad():
         for i, (images, target) in enumerate(loader):
@@ -202,15 +240,21 @@ def test_all(loader, model, criterion, half=False):
             p_corr = p.gather(1, target.unsqueeze(1)).squeeze() # [bs]: prob on the correct label
             soft = (1-p_corr).mean().item()
 
-
             aloss.update(loss.item(), bs)
             aerr.update(err, bs)
             asoft.update(soft, bs)
 
+            if calibration_metrics:
+                y_pred.append(p)
+                y_true.append(target)
+
     results = {m.name : m.avg for m in mets}
+    if calibration_metrics:
+        y_pred = torch.cat(y_pred).numpy()
+        y_true = torch.cat(y_true).numpy()
+        results.update({'ece': expected_calibration_error(y_true, y_pred), 'sce': static_calibration_error(y_true, y_pred)})
+
     return results
-
-
 
 def get_dataset(dataset):
     '''
