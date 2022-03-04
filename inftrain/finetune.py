@@ -21,6 +21,7 @@ import torch.backends.cudnn as cudnn
 from torch.utils.data import TensorDataset
 import torch.optim as optim
 from torch.optim import lr_scheduler
+from yaml import safe_load
 
 from .utils import AverageMeter
 from common.datasets import TransformingTensorDataset
