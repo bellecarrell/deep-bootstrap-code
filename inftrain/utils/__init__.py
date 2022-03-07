@@ -1,4 +1,5 @@
 #from google.cloud import storage
+import numpy as np
 import torch
 import torch.backends.cudnn as cudnn
 import subprocess
@@ -13,7 +14,7 @@ import torch.nn.functional as F
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 
-from common.datasets import load_cifar, TransformingTensorDataset, get_cifar_data_aug, load_cifar500, load_cifar10_1, load_cifar5m
+from common.datasets import load_cifar, TransformingTensorDataset, get_cifar_data_aug, load_cifar500, load_cifar10_1, load_cifar5m, load_cifar5m_test
 import common.models32 as models
 
 
@@ -154,10 +155,10 @@ def recycle(iterable):
 
 
 
-def cuda_transfer(images, target):
+def cuda_transfer(images, target, half=False):
     images = images.cuda(non_blocking=True)
     target = target.cuda(non_blocking=True)
-    if args.half: images = images.half()
+    if half: images = images.half()
     return images, target
 
 def mse_loss(output, y):
@@ -180,8 +181,41 @@ def predict(loader, model):
     preds = torch.cat(predsAll)
     return preds
 
+def expected_calibration_error(y_true, y_pred, num_bins=10):
+  pred_y = np.argmax(y_pred, axis=-1)
+  correct = (pred_y == y_true).astype(np.float32)
+  prob_y = np.max(y_pred, axis=-1)
 
-def test_all(loader, model, criterion):
+  b = np.linspace(start=0, stop=1.0, num=num_bins)
+  bins = np.digitize(prob_y, bins=b, right=True)
+
+  o = 0
+  for b in range(num_bins):
+    mask = bins == b
+    if np.any(mask):
+        o += np.abs(np.sum(correct[mask] - prob_y[mask]))
+
+  return o / y_pred.shape[0]
+
+def static_calibration_error(y_true, y_pred, num_bins=10):
+  classes = y_pred.shape[-1]
+
+  o = 0
+  for cur_class in range(classes):
+      correct = (cur_class == y_true).astype(np.float32)
+      prob_y = y_pred[..., cur_class]
+
+      b = np.linspace(start=0, stop=1.0, num=num_bins)
+      bins = np.digitize(prob_y, bins=b, right=True)
+
+      for b in range(num_bins):
+        mask = bins == b
+        if np.any(mask):
+            o += np.abs(np.sum(correct[mask] - prob_y[mask]))
+
+  return o / (y_pred.shape[0] * classes)
+
+def test_all(loader, model, criterion, half=False, calibration_metrics=False):
     # switch to evaluate mode
     model.eval()
     aloss = AverageMeter('Loss')
@@ -189,11 +223,15 @@ def test_all(loader, model, criterion):
     asoft = AverageMeter('SoftError')
     mets = [aloss, aerr, asoft]
 
+    if calibration_metrics:
+        y_pred = []
+        y_true = []
+
     with torch.no_grad():
         for i, (images, target) in enumerate(loader):
             bs = len(images)
             if torch.cuda.is_available():
-                images, target = cuda_transfer(images, target)
+                images, target = cuda_transfer(images, target, half=half)
             output = model(images)
             loss = criterion(output, target)
 
@@ -202,17 +240,27 @@ def test_all(loader, model, criterion):
             p_corr = p.gather(1, target.unsqueeze(1)).squeeze() # [bs]: prob on the correct label
             soft = (1-p_corr).mean().item()
 
-
             aloss.update(loss.item(), bs)
             aerr.update(err, bs)
             asoft.update(soft, bs)
 
+            if calibration_metrics:
+                y_pred.append(p)
+                y_true.append(target)
+
     results = {m.name : m.avg for m in mets}
+    if calibration_metrics:
+        if torch.cuda.is_available():
+            y_pred = torch.cat(y_pred).cpu().numpy()
+            y_true = torch.cat(y_true).cpu().numpy()
+        else:
+            y_pred = torch.cat(y_pred).numpy()
+            y_true = torch.cat(y_true).numpy()
+        results.update({'ece': expected_calibration_error(y_true, y_pred), 'sce': static_calibration_error(y_true, y_pred)})
+
     return results
 
-
-
-def get_dataset(dataset):
+def get_dataset(dataset, test_only=False):
     '''
         Returns dataset and pre-transform (to process dataset into [-1, 1] torch tensor)
     '''
@@ -228,6 +276,8 @@ def get_dataset(dataset):
     if dataset == 'cifar550':
         return load_cifar550(), noop
     if dataset == 'cifar5m':
+        if test_only:
+            return load_cifar5m_test(), uint_transform
         return load_cifar5m(), uint_transform
 
 
@@ -291,7 +341,7 @@ def make_loader_cifar10_1(args):
     datadir = '~/tmp/data/'
     if args.datadir:
         datadir = args.datadir
-    data, targets = load_cifar10_1('v4', datadir=datadir)    
+    data, targets = load_cifar10_1('v4', datadir=datadir)
     preprocess = transforms.Compose(
     [transforms.ToTensor(),
     transforms.Normalize([0.5] * 3, [0.5] * 3)])

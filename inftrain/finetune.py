@@ -21,6 +21,7 @@ import torch.backends.cudnn as cudnn
 from torch.utils.data import TensorDataset
 import torch.optim as optim
 from torch.optim import lr_scheduler
+from yaml import safe_load
 
 from .utils import AverageMeter
 from common.datasets import TransformingTensorDataset
@@ -35,8 +36,9 @@ parser = argparse.ArgumentParser(description='fine-tuning models')
 parser.add_argument('--proj', default='test-soft', type=str, help='project name')
 parser.add_argument('--wandb_mode', default='online', type=str, help='[online, offline]')
 parser.add_argument('--run_id_tag', default='', type=str)
-parser.add_argument('--dataset', default='pacs', type=str)
+parser.add_argument('--dataset', default='cifar100', type=str)
 parser.add_argument('--nsamps', default=-1, type=int, help='num. train samples, -1 uses the entire dataset')
+parser.add_argument('--nshots', default=-1, type=int, help='num. train samples per-class if using k-shot training, -1 does not do stratified subsampling')
 parser.add_argument('--batchsize', default=128, type=int)
 parser.add_argument('--k', default=4, type=int, help="log every k batches", dest='k')
 parser.add_argument('--save_final_model', default=False, action='store_true')
@@ -224,7 +226,7 @@ def get_data_aug(aug : int):
 def parse_wandb_run_id_tag(run_id_tag):
     '''
     If run_id_tag is of the form 'n=%d, aug=%d, iid=%s' the values
-    will get parsed out and stored as wandb summary values 
+    will get parsed out and stored as wandb summary values
     This can be helpful for plotting purposes to store necessary
     variables from upstream processes.
     '''
@@ -250,24 +252,20 @@ def main():
     if args.run_id_tag:
         wandb.run.name += " - " + args.run_id_tag
     wandb.run.save()
-    
+    cudnn.benchmark = True
+
+    with open('config.yml', 'r') as fp:
+        config = safe_load(fp)
+
+    # init logging
+    logger = VanillaLogger(args, wandb, expanse_root=config['expanse_root'], hash=True)
+
     pretrain_step, pretrain_n, pretrain_aug, pretrain_iid = parse_wandb_run_id_tag(args.run_id_tag)
     wandb.run.summary['pretrain_step'] = pretrain_step
     wandb.run.summary['pretrain_n'] = pretrain_n
     wandb.run.summary['pretrain_aug'] = pretrain_aug
     wandb.run.summary['pretrain_iid'] = pretrain_iid
     wandb.run.save()
-    wandb.log({
-        "pretrain_step": pretrain_step,
-        "pretrain_n": pretrain_n,
-        "pretrain_aug": pretrain_aug,
-        "pretrain_iid": pretrain_iid
-    })
-    
-    cudnn.benchmark = True
-
-    # init logging
-    logger = VanillaLogger(args, wandb, hash=True)
 
     print('Loading datasets...')
     (X_tr, Y_tr, X_te, Y_te), preproc = get_dataset(args.dataset)
@@ -277,6 +275,26 @@ def main():
         X_tr, Y_tr = X_tr[I], Y_tr[I]
     else:
         args.nsamps = X_tr.size(0)
+
+    if args.nshots > 0:
+        print(f'Using {args.nshots}-shot classification')
+        classes, class_counts = torch.unique(Y_tr, return_counts=True)
+        if torch.any(class_counts < args.nshots):
+            raise Exception(f'not enough data to do {args.nshots}-shot subsampling of training data')
+
+        kshot_X_tr = []
+        kshot_Y_tr = []
+        for cl in classes:
+            cl_indices = torch.where(Y_tr == cl)
+            kshot_X_tr.append(X_tr[cl_indices][:args.nshots])
+            kshot_Y_tr.append(torch.tensor([cl]*args.nshots))
+            # I = np.random.permutation(len(cl_indices[0]))[:args.nshots]
+            # kshot_X_tr.append(X_tr[I])
+            # kshot_Y_tr.append(torch.tensor([cl]*args.nshots))
+        X_tr = torch.vstack(kshot_X_tr)
+        Y_tr = torch.hstack(kshot_Y_tr)
+        args.nsamps = X_tr.size(0)
+        print(X_tr.size(), Y_tr.size())
 
     # Add noise (optionally)
     Y_tr = add_noise(Y_tr, args.noise)
@@ -327,6 +345,7 @@ def main():
 
         optimizer.zero_grad()
         loss.backward()
+        nn.utils.clip_grad_norm_(model.parameters(), 1.0)
         optimizer.step()
 
         ## logging
@@ -336,8 +355,8 @@ def main():
         if i % args.k == 0 or (not args.fast and  ( \
             # (i < 128) or \
             # (i < 512 and i % 2 == 0) or \
-            (i < 512 and i % 4 == 0) or \
-            (i < 1024 and i % 8 == 0))):
+            (i < 1024 and i % 4 == 0) or \
+            (i < 2048 and i % 8 == 0))):
             ''' Every k batches (and more frequently in early stages): log train/test errors. '''
 
             d = {'batch_num': i,

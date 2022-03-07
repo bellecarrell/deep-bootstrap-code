@@ -21,6 +21,7 @@ import torch.backends.cudnn as cudnn
 from torch.utils.data import TensorDataset
 import torch.optim as optim
 from torch.optim import lr_scheduler
+from yaml import safe_load
 
 from common.datasets import load_cifar, TransformingTensorDataset, get_cifar_data_aug, load_cifar10_1
 from common.datasets import load_cifar550, load_svhn_all, load_svhn, load_cifar5m
@@ -113,7 +114,7 @@ def get_loaders():
                 batch_size=args.batchsize,
                 shuffle=False,
                 num_workers=args.workers,
-                pin_memory=True)        
+                pin_memory=True)
             test_loaders[corruption] = test_loader
         return test_loaders
     elif args.eval_dataset == 'cifar10_1':
@@ -131,7 +132,7 @@ def get_loaders():
                 batch_size=args.batchsize,
                 shuffle=False,
                 num_workers=args.workers,
-                pin_memory=True) 
+                pin_memory=True)
         return {default_subset: test_loader}
 
 def main():
@@ -151,8 +152,11 @@ def main():
     if torch.cuda.is_available():
         model.cuda()
 
+    with open('config.yml', 'r') as fp:
+        config = safe_load(fp)
+
     # init logging
-    logger = VanillaLogger(args, wandb, hash=True)
+    logger = VanillaLogger(args, wandb, expanse_root=config['expanse_root'], hash=True)
 
     print('Loading dataset...')
     test_loaders = get_loaders()

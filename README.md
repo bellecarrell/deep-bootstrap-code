@@ -8,6 +8,10 @@ The CIFAR-5m dataset is released at: https://github.com/preetum/cifar5m
 
 ## Expanse
 
+If you haven't already, create a file at the root directory called `config.yml` based on
+the provided `sample-config.yml` and specify your own data where needed, this is gitignore'd
+so it won't get checked in.
+
 Adapting codebase to use a local filesystem for logging and model storage, etc.
 
 Run command: `python -m inftrain.train --proj <wandb_proj_name>`
@@ -23,3 +27,11 @@ Newly added args:
 ### Fine-tuning
 
 `python -m inftrain.finetune --proj finetune-test --wandb_mode offline --k 4 --pretrained /path/to/model.pt --aug 4`
+
+### Evaluation
+
+```
+python -m inftrain.eval_all --proj aug2-base-cifar10.1-eval --datadir /home/nmallina/tmp/data --eval-dataset cifar10_1 --pretrained /expanse/lustre/projects/csd697/nmallina/bootstrap/models/aug2-cifar5m-base-models/d9f09x6c --batchsize 256
+```
+
+after cloning: `https://github.com/modestyachts/CIFAR-10.1` into `<datadir>`

@@ -21,12 +21,13 @@ import torch.backends.cudnn as cudnn
 from torch.utils.data import TensorDataset
 import torch.optim as optim
 from torch.optim import lr_scheduler
+from yaml import safe_load
 
 from .utils import AverageMeter
 from common.datasets import load_cifar, TransformingTensorDataset, get_cifar_data_aug, AugMixDataset
 from common.datasets import load_cifar550, load_svhn_all, load_svhn, load_cifar5m, load_cifar100, load_pacs
 import common.models32 as models
-from .utils import get_model32, get_optimizer, get_scheduler, make_loader_cifar10_1, get_wandb_name, get_dataset, add_noise, get_data_aug, cuda_transfer, recycle, mse_loss, test_all
+from .utils import get_model32, get_optimizer, get_scheduler, make_loader_cifar10_1, get_wandb_name, get_dataset, add_noise, get_data_aug, cuda_transfer, recycle, mse_loss, test_all, augmentations
 
 from common.logging import VanillaLogger
 
@@ -156,8 +157,11 @@ def main():
     if torch.cuda.is_available():
         model.cuda()
 
+    with open('config.yml', 'r') as fp:
+        config = safe_load(fp)
+
     # init logging
-    logger = VanillaLogger(args, wandb, hash=True)
+    logger = VanillaLogger(args, wandb, expanse_root=config['expanse_root'], hash=True)
 
     print('Loading datasets...')
 
@@ -175,10 +179,10 @@ def main():
     if args.augmix:
         train_transform = transforms.Compose(
         [transforms.RandomHorizontalFlip(),
-        transforms.RandomCrop(32, padding=4), 
+        transforms.RandomCrop(32, padding=4),
         transforms.ToTensor(),
         transforms.Normalize([0.5] * 3, [0.5] * 3)])
-        
+
         preprocess = transforms.Compose(
             [transforms.ToTensor(),
             transforms.Normalize([0.5] * 3, [0.5] * 3)])
@@ -188,7 +192,7 @@ def main():
 
     else:
         tr_set = TransformingTensorDataset(X_tr, Y_tr, transform=transforms.Compose([preproc, get_data_aug(args.aug)]))
-    
+
     val_set = TransformingTensorDataset(X_te, Y_te, transform=preproc)
 
     tr_loader = torch.utils.data.DataLoader(tr_set, batch_size=args.batchsize,
@@ -229,10 +233,14 @@ def main():
 
         if args.augmix:
             if args.no_jsd:
+                #images = images.cuda()
+                #targets = targets.cuda()
                 logits = model(images)
                 loss = F.cross_entropy(logits, target)
             else:
-                images_all = torch.cat(images, 0)
+                images_all = torch.cat(images, 0).cuda()
+                #targets = targets.cuda()
+
                 logits_all = model(images_all)
                 logits_clean, logits_aug1, logits_aug2 = torch.split(
                     logits_all, images[0].size(0))
@@ -290,7 +298,7 @@ def main():
                 d.update({ f'Train {k}' : v for k, v in train_m.items()})
 
                 print(f'Batch {i}.\t lr: {lr:.3f}\t Train Loss: {d["Train Loss"]:.4f}\t Train Error: {d["Train Error"]:.3f}\t Test Error: {d["Test Error"]:.3f}')
-            
+
             else:
                 print(f'Batch {i}.\t lr: {lr:.3f}\t Test Error: {d["Test Error"]:.3f}')
 

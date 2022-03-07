@@ -143,6 +143,11 @@ def load_pacs(test_percent=0.2):
     return X_tr, Y_tr, X_te, Y_te
 
 def load_cifar5m_test():
+    '''
+    None in first two since this is interchangeably used
+    with the load function below that returns train sets
+    but just called as: _, _, X_te, Y_te = load_cifar5m_test()
+    '''
     nte = 10000 # num. of test samples to use (max 1e6)
     print('Downloading CIFAR 5mil...')
     #local_dir = download_dir('gs://gresearch/cifar5m') # download all 6 dataset files
