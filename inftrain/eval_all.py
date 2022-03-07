@@ -153,7 +153,7 @@ def get_loaders():
     elif args.eval_dataset == 'cifar5m':
         (X_te, Y_te), preproc = get_dataset('cifar5m', test_only=True)
         val_set = TransformingTensorDataset(X_te, Y_te, transform=preproc)
-        test_loader = torch.utils.data.DataLoader(cf5m_val_set, batch_size=256,
+        test_loader = torch.utils.data.DataLoader(val_set, batch_size=256,
             shuffle=False, num_workers=args.workers, pin_memory=True)
         return {default_subset: test_loader}
 
