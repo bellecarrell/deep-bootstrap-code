@@ -39,7 +39,7 @@ from common.logging import VanillaLogger
 parser = argparse.ArgumentParser(description='vanilla testing')
 parser.add_argument('--proj', default='test-soft', type=str, help='project name')
 parser.add_argument('--dataset', default='cifar5m', type=str, help='dataset model was trained on')
-parser.add_argument('--eval-dataset', default='base_cifar10_train', type=str, choices=['base_cifar10_train', 'base_cifar10_val', 'base_cifar10_test', 'cifar10c', 'cifar10_1'])
+parser.add_argument('--eval-dataset', default='base_cifar10_train', type=str, choices=['base_cifar10_train', 'base_cifar10_val', 'base_cifar10_test', 'cifar10c', 'cifar10_1', 'cifar5m'])
 parser.add_argument('--corr', default='', type=str)
 parser.add_argument('--eval-id-vs-ood', dest='eval_id_vs_ood', default=False, action='store_true')
 parser.add_argument('--eval-calibration-metrics', dest='eval_calibration_metrics', default=False, action='store_true')
