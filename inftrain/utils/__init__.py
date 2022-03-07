@@ -215,7 +215,7 @@ def static_calibration_error(y_true, y_pred, num_bins=10):
 
   return o / (y_pred.shape[0] * classes)
 
-def test_all(loader, model, criterion, calibration_metrics=False):
+def test_all(loader, model, criterion, half=False, calibration_metrics=False):
     # switch to evaluate mode
     model.eval()
     aloss = AverageMeter('Loss')
@@ -250,8 +250,12 @@ def test_all(loader, model, criterion, calibration_metrics=False):
 
     results = {m.name : m.avg for m in mets}
     if calibration_metrics:
-        y_pred = torch.cat(y_pred).numpy()
-        y_true = torch.cat(y_true).numpy()
+        if torch.cuda.is_available():
+            y_pred = torch.cat(y_pred).cpu().numpy()
+            y_true = torch.cat(y_true).cpu().numpy()
+        else:
+            y_pred = torch.cat(y_pred).numpy()
+            y_true = torch.cat(y_true).numpy()
         results.update({'ece': expected_calibration_error(y_true, y_pred), 'sce': static_calibration_error(y_true, y_pred)})
 
     return results
