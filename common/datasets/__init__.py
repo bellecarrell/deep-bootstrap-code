@@ -190,6 +190,30 @@ def load_cifar5m():
 
     return X_tr, Y_tr, X_te, Y_te
 
+def load_cifar5m_binary(difficulty='easy'):
+    '''
+        Returns binary classification subset of cifar5m, either car/dog (easy) or car/truck (hard)
+        warning: returns as numpy array of unit8s, not torch tensors.
+    '''
+
+    X_tr, Y_tr, X_te, Y_te = load_cifar5m()
+    class_1 = 1
+    if difficulty == 'easy':
+        class_2 = 5
+    if difficulty == 'hard':
+        class_2 = 9
+
+    tr_binary_subset = (Y_tr == class_1) | (Y_tr == class_2)
+    te_binary_subset = (Y_te == class_1) | (Y_te == class_2)
+    Y_tr = Y_tr[tr_binary_subset]
+    Y_te = Y_te[te_binary_subset]
+
+    for Y in [Y_tr, Y_te]:
+        Y[Y == class_1] = 0
+        Y[Y == class_2] = 1
+
+    return X_tr[tr_binary_subset], Y_tr, X_te[te_binary_subset], Y_te
+
 def load_cifar500():
     import pickle
 
@@ -239,6 +263,30 @@ def load_cifar(datadir='~/tmp/data'):
     X_tr, Y_tr = to_xy(train_ds)
     X_te, Y_te = to_xy(test_ds)
     return X_tr, Y_tr, X_te, Y_te
+
+def load_cifar_binary(difficulty='easy'):
+    '''
+        Returns binary classification subset of cifar5m, either car/dog (easy) or car/truck (hard)
+        warning: returns as numpy array of unit8s, not torch tensors.
+    '''
+
+    X_tr, Y_tr, X_te, Y_te = load_cifar()
+    class_1 = 1
+    if difficulty == 'easy':
+        class_2 = 5
+    if difficulty == 'hard':
+        class_2 = 9
+
+    tr_binary_subset = (Y_tr == class_1) | (Y_tr == class_2)
+    te_binary_subset = (Y_te == class_1) | (Y_te == class_2)
+    Y_tr = Y_tr[tr_binary_subset]
+    Y_te = Y_te[te_binary_subset]
+
+    for Y in [Y_tr, Y_te]:
+        Y[Y == class_1] = 0
+        Y[Y == class_2] = 1
+
+    return X_tr[tr_binary_subset], Y_tr, X_te[te_binary_subset], Y_te
 
 def load_cifar10_1(version_string='', datadir='', load_tinyimage_indices=False):
     data_path = path.join(datadir, 'CIFAR-10.1/datasets/')

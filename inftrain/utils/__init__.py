@@ -6,6 +6,7 @@ import subprocess
 import os
 import time
 import shutil
+import random
 from datetime import datetime
 import torch.optim as optim
 from torch.optim import lr_scheduler
@@ -14,7 +15,7 @@ import torch.nn.functional as F
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 
-from common.datasets import load_cifar, TransformingTensorDataset, get_cifar_data_aug, load_cifar500, load_cifar10_1, load_cifar5m, load_cifar5m_test
+from common.datasets import load_cifar, TransformingTensorDataset, get_cifar_data_aug, load_cifar500, load_cifar10_1, load_cifar5m, load_cifar5m_binary, load_cifar5m_test
 import common.models32 as models
 
 
@@ -215,9 +216,13 @@ def static_calibration_error(y_true, y_pred, num_bins=10):
 
   return o / (y_pred.shape[0] * classes)
 
-def test_all(loader, model, criterion, half=False, calibration_metrics=False):
+def test_all(loader, model, criterion, mode='classification', half=False, calibration_metrics=False):
     # switch to evaluate mode
-    model.eval()
+    if type(model) == list:
+        for m in model:
+            m.eval()
+    else:
+        model.eval()
     aloss = AverageMeter('Loss')
     aerr = AverageMeter('Error')
     asoft = AverageMeter('SoftError')
@@ -232,11 +237,30 @@ def test_all(loader, model, criterion, half=False, calibration_metrics=False):
             bs = len(images)
             if torch.cuda.is_available():
                 images, target = cuda_transfer(images, target, half=half)
-            output = model(images)
-            loss = criterion(output, target)
+            
+            if type(model) == list:
+                ps = []
+                outputs = []
+                for m in model:
+                    output = m(images)
+                    outputs.append(output)
+                    ps.append(F.softmax(output, dim=1))
 
-            err = (output.argmax(1) != target).float().mean().item()
-            p = F.softmax(output, dim=1) # [bs x 10] : softmax probabilties
+                p = [sum(prob)/len(ps) for prob in zip(*ps)]
+                p = torch.stack(p)            
+                output = [sum(o)/len(outputs) for o in zip(*outputs)]
+                output = torch.stack(output)
+                output_pred = output.argmax(1)
+                loss = criterion(output, target)
+
+            else:
+                output = model(images)
+                loss = criterion(output, target)
+                output_pred = output.argmax(1)
+                p = F.softmax(output, dim=1) # [bs x 10] : softmax probabilties
+
+
+            err = (output_pred != target).float().mean().item()
             p_corr = p.gather(1, target.unsqueeze(1)).squeeze() # [bs]: prob on the correct label
             soft = (1-p_corr).mean().item()
 
@@ -279,7 +303,10 @@ def get_dataset(dataset, test_only=False):
         if test_only:
             return load_cifar5m_test(), uint_transform
         return load_cifar5m(), uint_transform
-
+    if dataset == 'cifar5m-binary-easy':
+        return load_cifar5m_binary(difficulty='easy'), uint_transform
+    if dataset == 'cifar5m-binary-hard':
+        return load_cifar5m_binary(difficulty='hard'), uint_transform
 
 def add_noise(Y, p: float):
     ''' Adds noise to Y, s.t. the label is wrong w.p. p '''
@@ -331,10 +358,10 @@ def get_data_aug(aug : int):
             ])
 
 
-def make_loader(x, y, transform=None, batch_size=256, num_workers=1):
+def make_loader(x, y, transform=None, batch_size=256, num_workers=1,worker_init_fn=None):
     dataset = TransformingTensorDataset(x, y, transform=transform)
     loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size,
-            shuffle=False, num_workers=num_workers, pin_memory=True)
+            shuffle=False, num_workers=num_workers, pin_memory=True, worker_init_fn=worker_init_fn)
     return loader
 
 def make_loader_cifar10_1(args):
@@ -349,13 +376,36 @@ def make_loader_cifar10_1(args):
     cifar10_1 = datasets.CIFAR10(datadir, train=False, transform=test_transform, download=True)
     cifar10_1.data = data
     cifar10_1.targets = torch.tensor(targets, dtype=torch.long)
+    worker_init_fn=None
+    if args.aseed:
+        worker_init_fn=None
+
     loader = torch.utils.data.DataLoader(
             cifar10_1,
             batch_size=args.batchsize,
             shuffle=False,
             num_workers=args.workers,
-            pin_memory=True)
+            pin_memory=True,
+            worker_init_fn=worker_init_fn)
     return loader
 
 def get_wandb_name(args):
     return f'{args.arch}-{args.dataset} n={args.nsamps} aug={args.aug} iid={args.iid}'
+
+def set_seeds(seed):
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
+        torch.use_deterministic_algorithms(True)
+    random.seed(seed)
+    np.random.seed(seed)
+
+'''
+Pass this to the worker_init_fn in the data loader
+to have deterministic behavior in data loading
+when utilizing multiple workers.
+'''
+def seed_worker(worker_id):
+    worker_seed = torch.initial_seed() % 2**32
+    np.random.seed(worker_seed)
+    random.seed(worker_seed)

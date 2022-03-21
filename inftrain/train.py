@@ -24,10 +24,11 @@ from torch.optim import lr_scheduler
 from yaml import safe_load
 
 from .utils import AverageMeter
-from common.datasets import load_cifar, TransformingTensorDataset, get_cifar_data_aug, AugMixDataset
+from common.datasets import load_cifar, load_cifar_binary, TransformingTensorDataset, get_cifar_data_aug, AugMixDataset
 from common.datasets import load_cifar550, load_svhn_all, load_svhn, load_cifar5m, load_cifar100, load_pacs
+import common.datasets.augmentations as augmentations
 import common.models32 as models
-from .utils import get_model32, get_optimizer, get_scheduler, make_loader_cifar10_1, get_wandb_name, get_dataset, add_noise, get_data_aug, cuda_transfer, recycle, mse_loss, test_all, augmentations
+from .utils import get_model32, get_optimizer, get_scheduler, make_loader, make_loader_cifar10_1, get_wandb_name, get_dataset, add_noise, get_data_aug, cuda_transfer, recycle, mse_loss, test_all, set_seeds, seed_worker
 
 from common.logging import VanillaLogger
 
@@ -48,6 +49,7 @@ parser.add_argument('--pretrained', type=str, default=None, help='expanse path t
 parser.add_argument('--width', default=None, type=int, help="architecture width parameter (optional)")
 parser.add_argument('--loss', default='xent', choices=['xent', 'mse'], type=str)
 parser.add_argument('--cifar10-1', default=False, action='store_true', help='evaluate on cifar10.1')
+parser.add_argument('--eval-calibration-metrics', dest='eval_calibration_metrics', default=False, action='store_true')
 
 parser.add_argument('--opt', default="sgd", type=str)
 parser.add_argument('--lr', default=0.1, type=float, help='initial learning rate', dest='lr')
@@ -101,11 +103,11 @@ parser.add_argument('--comment', default=None)
 
 args = parser.parse_args()
 
-def make_loader(x, y, transform=None, batch_size=256):
-    dataset = TransformingTensorDataset(x, y, transform=transform)
-    loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size,
-            shuffle=False, num_workers=args.workers, pin_memory=True)
-    return loader
+# def make_loader(x, y, transform=None, batch_size=256):
+#     dataset = TransformingTensorDataset(x, y, transform=transform)
+#     loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size,
+#             shuffle=False, num_workers=args.workers, pin_memory=True)
+#     return loader
 
 def aug(image, preprocess):
   """Perform AugMix augmentations and compute mixture.
@@ -150,9 +152,20 @@ def main():
     wandb.run.name = wandb.run.id  + " - " + get_wandb_name(args)
     wandb.run.save()
     cudnn.benchmark = True
+    worker_init_fn = None
+    if args.aseed: 
+        set_seeds(args.aseed)
+        worker_init_fn = None
 
     #load the model
-    model = get_model32(args, args.arch, half=args.half, nclasses=10, pretrained_path=args.pretrained)
+    if args.dataset.startswith('cifar5m-binary'):
+        # 1 class because binary regression with threshold
+        nclasses = 2
+        mode = 'classification'
+    else:
+        nclasses = 10
+        mode = 'classification'
+    model = get_model32(args, args.arch, half=args.half, nclasses=nclasses, pretrained_path=args.pretrained)
     # model = torch.nn.DataParallel(model).cuda()
     if torch.cuda.is_available():
         model.cuda()
@@ -196,11 +209,14 @@ def main():
     val_set = TransformingTensorDataset(X_te, Y_te, transform=preproc)
 
     tr_loader = torch.utils.data.DataLoader(tr_set, batch_size=args.batchsize,
-            shuffle=True, num_workers=args.workers, pin_memory=True, drop_last=True) # drop the last batch if it's incomplete (< batch size)
+            shuffle=True, num_workers=args.workers, pin_memory=True, drop_last=True, worker_init_fn=worker_init_fn) # drop the last batch if it's incomplete (< batch size)
     te_loader = torch.utils.data.DataLoader(val_set, batch_size=256,
-            shuffle=False, num_workers=args.workers, pin_memory=True)
+            shuffle=False, num_workers=args.workers, pin_memory=True, worker_init_fn=worker_init_fn)
 
-    cifar_test = make_loader(*(load_cifar()[2:])) # original cifar-10 test set
+    if not args.dataset.startswith('cifar5m-binary'):
+        cifar_test = make_loader(*(load_cifar()[2:]), worker_init_fn) # original cifar-10 test set
+    else:
+        cifar_test = make_loader(*(load_cifar_binary()[2:]), worker_init_fn) # original cifar-10 test set
 
     if args.cifar10_1:
         cifar10_1_loader = make_loader_cifar10_1(args)
@@ -220,10 +236,11 @@ def main():
 
     # define loss function (criterion), optimizer and scheduler
     criterion = nn.CrossEntropyLoss().cuda() if args.loss == 'xent' else mse_loss
+    # if args.dataset.startswith('cifar5m-binary'):
+    #     criterion = nn.BCEWithLogitsLoss().cuda()
+
     optimizer = get_optimizer(args.opt, model.parameters(), args.lr, args.momentum, args.wd)
     scheduler = get_scheduler(args, args.scheduler, optimizer, num_epochs=num_lr_steps, batches_per_epoch=args.batches_per_lr_step)
-
-
 
     n_tot = 0
     for i, (images, target) in enumerate(recycle(tr_loader)):
@@ -261,6 +278,10 @@ def main():
 
         else:
             output = model(images)
+            if mode == 'regression':
+                output = torch.squeeze(output)
+                target = target.float()
+
             loss = criterion(output, target)
 
         n_tot += len(images)
@@ -284,17 +305,17 @@ def main():
                 'lr': lr,
                 'n' : n_tot}
 
-            test_m = test_all(te_loader, model, criterion)
-            testcf_m = test_all(cifar_test, model, criterion)
+            test_m = test_all(te_loader, model, criterion, calibration_metrics=args.eval_calibration_metrics, mode=mode)
+            #testcf_m = test_all(cifar_test, model, criterion, calibration_metrics=args.eval_calibration_metrics, mode=mode)
             d.update({ f'Test {k}' : v for k, v in test_m.items()})
-            d.update({ f'CF10 {k}' : v for k, v in testcf_m.items()})
+            #d.update({ f'CF10 {k}' : v for k, v in testcf_m.items()})
 
             if args.cifar10_1:
-                cf10_1_m = test_all(cifar10_1_loader, model, criterion)
+                cf10_1_m = test_all(cifar10_1_loader, model, criterion, calibration_metrics=args.eval_calibration_metrics, mode=mode)
                 d.update({ f'CF10.1 {k}' : v for k, v in cf10_1_m.items()})
 
             if not args.iid and not args.augmix:
-                train_m = test_all(tr_loader, model, criterion)
+                train_m = test_all(tr_loader, model, criterion, calibration_metrics=args.eval_calibration_metrics, mode=mode)
                 d.update({ f'Train {k}' : v for k, v in train_m.items()})
 
                 print(f'Batch {i}.\t lr: {lr:.3f}\t Train Loss: {d["Train Loss"]:.4f}\t Train Error: {d["Train Error"]:.3f}\t Test Error: {d["Test Error"]:.3f}')
@@ -328,12 +349,12 @@ def main():
     logger.save_model(model)
 
     summary = {}
-    summary.update({ f'Final Test {k}' : v for k, v in test_all(te_loader, model, criterion).items()})
-    summary.update({ f'Final Train {k}' : v for k, v in test_all(tr_loader, model, criterion).items()})
-    summary.update({ f'Final CF10 {k}' : v for k, v in test_all(cifar_test, model, criterion).items()})
+    summary.update({ f'Final Test {k}' : v for k, v in test_all(te_loader, model, criterion, calibration_metrics=args.eval_calibration_metrics, mode=mode).items()})
+    summary.update({ f'Final Train {k}' : v for k, v in test_all(tr_loader, model, criterion, calibration_metrics=args.eval_calibration_metrics, mode=mode).items()})
+    summary.update({ f'Final CF10 {k}' : v for k, v in test_all(cifar_test, model, criterion, calibration_metrics=args.eval_calibration_metrics, mode=mode).items()})
 
     if args.cifar10_1:
-        summary.update({ f'Final CF10.1 {k}' : v for k, v in test_all(cifar10_1_loader, model, criterion).items()})
+        summary.update({ f'Final CF10.1 {k}' : v for k, v in test_all(cifar10_1_loader, model, criterion, calibration_metrics=args.eval_calibration_metrics, mode=mode).items()})
 
     logger.log_summary(summary)
     logger.flush()
