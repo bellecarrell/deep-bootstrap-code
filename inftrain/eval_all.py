@@ -39,7 +39,7 @@ from common.logging import VanillaLogger
 parser = argparse.ArgumentParser(description='vanilla testing')
 parser.add_argument('--proj', default='test-soft', type=str, help='project name')
 parser.add_argument('--dataset', default='cifar5m', type=str, help='dataset model was trained on')
-parser.add_argument('--eval-dataset', default='base_cifar10_train', type=str, choices=['base_cifar10_train', 'base_cifar10_val', 'base_cifar10_test', 'cifar10c', 'cifar10_1', 'cifar5m'])
+parser.add_argument('--eval-dataset', default='base_cifar10_train', type=str, choices=['base_cifar10_train', 'base_cifar10_val', 'base_cifar10_test', 'cifar10c', 'cifar10_1', 'cifar5m', 'cifar5m-binary-easy', 'cifar5m-binary-hard'])
 parser.add_argument('--corr', default='', type=str)
 parser.add_argument('--eval-id-vs-ood', dest='eval_id_vs_ood', default=False, action='store_true')
 parser.add_argument('--eval-calibration-metrics', dest='eval_calibration_metrics', default=False, action='store_true')
@@ -72,7 +72,7 @@ args = parser.parse_args()
 dataset_names = {'base_cifar10_train': 'cifar10', 'base_cifar10_val': 'cifar10'}
 
 # dict mapping dataset eval names to wandb logging names
-dataset_logs = {'base_cifar10_train': 'Train', 'base_cifar10_val': 'Test', 'base_cifar10_test': 'CF10', 'cifar10_1': 'CF10.1', 'cifar10c': 'CF10-C', 'cifar5m': 'CF5m'}
+dataset_logs = {'base_cifar10_train': 'Train', 'base_cifar10_val': 'Test', 'base_cifar10_test': 'CF10', 'cifar10_1': 'CF10.1', 'cifar10c': 'CF10-C', 'cifar5m': 'CF5m', 'cifar5m-binary-hard': 'CF5m-binary'}
 
 corruptions = [
     'gaussian_noise', 'shot_noise', 'impulse_noise', 'defocus_blur',
@@ -156,6 +156,12 @@ def get_loaders():
         test_loader = torch.utils.data.DataLoader(val_set, batch_size=256,
             shuffle=False, num_workers=args.workers, pin_memory=True)
         return {default_subset: test_loader}
+    elif args.eval_dataset.startswith('cifar5m-binary'):
+        (X_tr, Y_tr, X_te, Y_te), preproc = get_dataset(args.eval_dataset, test_only=True)
+        val_set = TransformingTensorDataset(X_te, Y_te, transform=preproc)
+        test_loader = torch.utils.data.DataLoader(val_set, batch_size=256,
+            shuffle=False, num_workers=args.workers, pin_memory=True)
+        return {default_subset: test_loader}
 
 def get_step(f):
     final_subdir = pathlib.PurePath(f).parent.name
@@ -186,6 +192,11 @@ def main():
     with open('config.yml', 'r') as fp:
         config = safe_load(fp)
 
+    if args.eval_dataset.startswith('cifar5m-binary'):
+        nclasses = 2
+    else:
+        nclasses = 10
+
     # init logging
     logger = VanillaLogger(args, wandb, expanse_root=config['expanse_root'], hash=True)
 
@@ -211,13 +222,13 @@ def main():
     steps.sort()
 
     for step in steps:
-        if step < args.resume or step % 1024 != 0:
+        if step < args.resume: #or step % 1024 != 0:
             continue
 
         f = f'{args.pretrained}/step{step:06}/model.pt'
 
         #load the model
-        model = get_model32(args, args.arch, half=args.half, nclasses=10, pretrained_path=f)
+        model = get_model32(args, args.arch, half=args.half, nclasses=nclasses, pretrained_path=f)
         if args.pretrained:
             load_state_dict(model, f)
 
@@ -236,8 +247,9 @@ def main():
             mean_vals = defaultdict(list)
 
         d.update({'batch_num' : step})
+        fname = f'{args.datadir}calibration/{wandb.run.id}_{step}.pickle'
         for name, test_loader in test_loaders.items():
-            results = test_all(test_loader, model, criterion, half=args.half, calibration_metrics=args.eval_calibration_metrics)
+            results = test_all(test_loader, model, criterion, half=args.half, calibration_metrics=args.eval_calibration_metrics, fname=fname)
             for k, v in results.items():
                 print(f'{dataset_logs[args.eval_dataset]} {k} : {v}')
 

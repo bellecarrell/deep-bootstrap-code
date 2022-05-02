@@ -17,6 +17,7 @@ import torchvision.datasets as datasets
 
 from common.datasets import load_cifar, TransformingTensorDataset, get_cifar_data_aug, load_cifar500, load_cifar10_1, load_cifar5m, load_cifar5m_binary, load_cifar5m_test
 import common.models32 as models
+from common import save
 
 
 def get_optimizer(optimizer_name, parameters, lr, momentum=0, weight_decay=0):
@@ -190,6 +191,7 @@ def expected_calibration_error(y_true, y_pred, num_bins=10):
   b = np.linspace(start=0, stop=1.0, num=num_bins)
   bins = np.digitize(prob_y, bins=b, right=True)
 
+
   o = 0
   for b in range(num_bins):
     mask = bins == b
@@ -216,7 +218,7 @@ def static_calibration_error(y_true, y_pred, num_bins=10):
 
   return o / (y_pred.shape[0] * classes)
 
-def test_all(loader, model, criterion, mode='classification', half=False, calibration_metrics=False):
+def test_all(loader, model, criterion, mode='classification', half=False, calibration_metrics=False, fname=''):
     # switch to evaluate mode
     if type(model) == list:
         for m in model:
@@ -250,6 +252,7 @@ def test_all(loader, model, criterion, mode='classification', half=False, calibr
                 p = torch.stack(p)            
                 output = [sum(o)/len(outputs) for o in zip(*outputs)]
                 output = torch.stack(output)
+                #p = F.softmax(output, dim=1)
                 output_pred = output.argmax(1)
                 loss = criterion(output, target)
 
@@ -281,6 +284,8 @@ def test_all(loader, model, criterion, mode='classification', half=False, calibr
             y_pred = torch.cat(y_pred).numpy()
             y_true = torch.cat(y_true).numpy()
         results.update({'ece': expected_calibration_error(y_true, y_pred), 'sce': static_calibration_error(y_true, y_pred)})
+        if fname:
+            save({'y_pred': y_pred, 'y_true': y_true}, fname)
 
     return results
 
