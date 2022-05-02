@@ -183,7 +183,7 @@ def predict(loader, model):
     preds = torch.cat(predsAll)
     return preds
 
-def expected_calibration_error(y_true, y_pred, num_bins=10):
+def expected_calibration_error(y_true, y_pred, num_bins=11):
   pred_y = np.argmax(y_pred, axis=-1)
   correct = (pred_y == y_true).astype(np.float32)
   prob_y = np.max(y_pred, axis=-1)
@@ -200,7 +200,7 @@ def expected_calibration_error(y_true, y_pred, num_bins=10):
 
   return o / y_pred.shape[0]
 
-def static_calibration_error(y_true, y_pred, num_bins=10):
+def static_calibration_error(y_true, y_pred, num_bins=11):
   classes = y_pred.shape[-1]
 
   o = 0
