@@ -166,7 +166,7 @@ def load_cifar5m():
         warning: returns as numpy array of unit8s, not torch tensors.
     '''
 
-    nte = 50000 # num. of test samples to use (max 1e6)
+    nte = 10000 # num. of test samples to use (max 1e6)
     print('Downloading CIFAR 5mil...')
     #local_dir = download_dir('gs://gresearch/cifar5m') # download all 6 dataset files
     local_dir = '/expanse/lustre/projects/csd697/nmallina/data/cifar-5m'
