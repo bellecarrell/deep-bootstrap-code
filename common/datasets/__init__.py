@@ -166,7 +166,7 @@ def load_cifar5m():
         warning: returns as numpy array of unit8s, not torch tensors.
     '''
 
-    nte = 10000 # num. of test samples to use (max 1e6)
+    nte = 50000 # num. of test samples to use (max 1e6)
     print('Downloading CIFAR 5mil...')
     #local_dir = download_dir('gs://gresearch/cifar5m') # download all 6 dataset files
     local_dir = '/expanse/lustre/projects/csd697/nmallina/data/cifar-5m'
@@ -190,7 +190,7 @@ def load_cifar5m():
 
     return X_tr, Y_tr, X_te, Y_te
 
-def load_cifar5m_binary(difficulty='easy'):
+def load_cifar5m_binary(difficulty='hard'):
     '''
         Returns binary classification subset of cifar5m, either car/dog (easy) or car/truck (hard)
         warning: returns as numpy array of unit8s, not torch tensors.
@@ -264,7 +264,7 @@ def load_cifar(datadir='~/tmp/data'):
     X_te, Y_te = to_xy(test_ds)
     return X_tr, Y_tr, X_te, Y_te
 
-def load_cifar_binary(difficulty='easy'):
+def load_cifar_binary(difficulty='hard'):
     '''
         Returns binary classification subset of cifar5m, either car/dog (easy) or car/truck (hard)
         warning: returns as numpy array of unit8s, not torch tensors.
