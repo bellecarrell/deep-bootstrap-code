@@ -2,7 +2,7 @@
 # sys.path.append("/home/jupyter/pytorch-training/trainer")
 
 from common.models.small import *
-from common.models.vit import vit4, vit8
+from common.models.vit import vit4, vit4s, vit8
 
 import torch
 from torchvision.transforms import transforms
