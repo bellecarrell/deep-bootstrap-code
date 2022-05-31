@@ -140,6 +140,18 @@ def reinit_head(vit_model, targ_nclasses):
     vit_model.mlp_head[-1] = clf # just re-init the final linear layer
     return vit_model
 
+def vit4s(patch_size=4,
+        num_classes=10,
+        image_size=32,
+        dim = 768,
+        depth = 12,
+        heads = 6,
+        mlp_dim = 3072,
+        dropout=0,
+        emb_dropout=0,
+        **kwargs):
+    return ViT(**locals())
+
 def vit4(patch_size=4,
         num_classes=10,
         image_size=32,
