@@ -8,6 +8,7 @@ import time
 import shutil
 import random
 from datetime import datetime
+import timm
 import torch.optim as optim
 from torch.optim import lr_scheduler
 import torch.nn as nn
@@ -92,6 +93,9 @@ def get_model32(args, model_name, nchannels=3, nclasses=10, half=False, pretrain
         model = get_rrand_model(args, nclasses=nclasses)
     elif model_name.startswith('vit'):
         model = models.__dict__[model_name](num_classes=nclasses, pretrained_path=pretrained_path)
+    elif model_name.startswith('timm'):
+        model_name = model_name.strip('timm')[1:]
+        model = timm.create_model(model_name, num_classes=nclasses, img_size=32)
     else:
         if args.width is not None:
             model = models.__dict__[model_name](num_classes=nclasses, width=args.width)
@@ -249,11 +253,9 @@ def test_all(loader, model, criterion, mode='classification', half=False, calibr
                     ps.append(F.softmax(output, dim=1))
 
                 p = [sum(prob)/len(ps) for prob in zip(*ps)]
-                p = torch.stack(p)            
-                output = [sum(o)/len(outputs) for o in zip(*outputs)]
-                output = torch.stack(output)
-                #p = F.softmax(output, dim=1)
-                output_pred = output.argmax(1)
+                p = torch.stack(p)
+                output = torch.log(p)
+                output_pred = p.argmax(1)
                 loss = criterion(output, target)
 
             else:
