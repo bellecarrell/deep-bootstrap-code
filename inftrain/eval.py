@@ -34,10 +34,11 @@ from common.logging import VanillaLogger
 
 parser = argparse.ArgumentParser(description='vanilla testing')
 parser.add_argument('--proj', default='test-soft', type=str, help='project name')
-parser.add_argument('--eval-dataset', default='base_cifar10_train', type=str, choices=['base_cifar10_train', 'base_cifar10_val', 'base_cifar10_test', 'cifar10c', 'cifar10_1'])
+parser.add_argument('--eval-dataset', default='base_cifar10_train', type=str, choices=['base_cifar10_train', 'base_cifar10_val', 'base_cifar10_test', 'cifar10c', 'cifar10_1', 'cifar5m'])
 parser.add_argument('--nsamps', default=50000, type=int, help='num. train samples')
 parser.add_argument('--batchsize', default=128, type=int)
 parser.add_argument('--iid', default=False, action='store_true', help='simulate infinite samples (fresh samples each batch)')
+parser.add_argument('--eval-calibration-metrics', dest='eval_calibration_metrics', default=False, action='store_true')
 
 parser.add_argument('--arch', metavar='ARCH', default='preresnet18')
 parser.add_argument('--pretrained', type=str, default=None, help='expanse path to pretrained model state dict')
@@ -117,6 +118,15 @@ def get_loaders():
                 pin_memory=True)
             test_loaders[corruption] = test_loader
         return test_loaders
+    elif args.eval_dataset == 'cifar5m':
+        (X_tr, Y_tr, X_te, Y_te), preproc = get_dataset(args.eval_dataset)
+        tr_set = TransformingTensorDataset(X_tr, Y_tr, transform=preproc)
+        val_set = TransformingTensorDataset(X_te, Y_te, transform=preproc)
+        tr_loader = torch.utils.data.DataLoader(tr_set, batch_size=args.batchsize,
+            shuffle=True, num_workers=args.workers, pin_memory=True, drop_last=True) # drop the last batch if it's incomplete (< batch size)
+        te_loader = torch.utils.data.DataLoader(val_set, batch_size=256,
+            shuffle=False, num_workers=args.workers, pin_memory=True)
+        return {"test": te_loader, "train": tr_loader}
     elif args.eval_dataset == 'cifar10_1':
         data, targets = load_cifar10_1('v4', args.datadir)
         preprocess = transforms.Compose(
@@ -140,7 +150,7 @@ def main():
     if args.pretrained == 'None':
         args.pretrained = None # hack for caliban
 
-    wandb.init(project=args.proj)
+    wandb.init(project=args.proj, entity='deep-bootstrap2')
     cudnn.benchmark = True
 
     #load the model
@@ -167,9 +177,9 @@ def main():
 
     summary = {}
     for name, test_loader in test_loaders.items():
-        summary.update({ f'Final Test on dataset {args.eval_dataset} subset {name} {k}' : v for k, v in test_all(test_loader, model, criterion).items()})
+        summary.update({ f'Final Test on dataset {args.eval_dataset} subset {name} {k}' : v for k, v in test_all(test_loader, model, criterion, calibration_metrics=True).items()})
 
-    logger.log_summary(summary)
+    logger.log_scalars(summary)
     logger.flush()
 
 
