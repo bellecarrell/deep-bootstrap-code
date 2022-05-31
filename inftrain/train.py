@@ -138,6 +138,9 @@ def aug(image, preprocess):
   mixed = (1 - m) * preprocess(image) + m * mix
   return mixed
 
+def get_fname(args, wandb, stage, step):
+    os.makedirs(os.path.join(f'{args.datadir}','calibration/',f'{args.proj}'), exist_ok=True)
+    return os.path.join(f'{args.datadir}','calibration/',f'{args.proj}',f'{stage}_{args.dataset}_{wandb.run.id}_{step}.pickle')
 
 def main():
     ## argparsing hacks
@@ -187,7 +190,7 @@ def main():
 
     # Add noise (optionally)
     Y_tr = add_noise(Y_tr, args.noise)
-    Y_te = add_noise(Y_te, args.noise)
+    #Y_te = add_noise(Y_te, args.noise)
 
     if args.augmix:
         train_transform = transforms.Compose(
@@ -243,6 +246,7 @@ def main():
     scheduler = get_scheduler(args, args.scheduler, optimizer, num_epochs=num_lr_steps, batches_per_epoch=args.batches_per_lr_step)
 
     n_tot = 0
+    saved_at_sixty = False
     for i, (images, target) in enumerate(recycle(tr_loader)):
         model.train()
         if torch.cuda.is_available():
@@ -297,31 +301,34 @@ def main():
         if i % args.k == 0 or (not args.fast and  ( \
             # (i < 128) or \
             # (i < 512 and i % 2 == 0) or \
-            (i < 1024 and i % 4 == 0) or \
-            (i < 2048 and i % 8 == 0))):
+            # (i < 1024 and i % 4 == 0) or \
+            # (i < 2048 and i % 8 == 0))):
+            # for ViT recommend (when not using args.fast) this:
+            (i < 512 and i % 4 == 0) or \
+            (i < 1024 and i % 8 == 0))):
             ''' Every k batches (and more frequently in early stages): log train/test errors. '''
 
             d = {'batch_num': i,
                 'lr': lr,
                 'n' : n_tot}
 
-            test_m = test_all(te_loader, model, criterion, calibration_metrics=args.eval_calibration_metrics, mode=mode)
-            #testcf_m = test_all(cifar_test, model, criterion, calibration_metrics=args.eval_calibration_metrics, mode=mode)
-            d.update({ f'Test {k}' : v for k, v in test_m.items()})
-            #d.update({ f'CF10 {k}' : v for k, v in testcf_m.items()})
+            test_m = test_all(te_loader, model, criterion, calibration_metrics=args.eval_calibration_metrics, fname=get_fname(args, wandb, 'val', i))
+            testcf_m = test_all(cifar_test, model, criterion, calibration_metrics=args.eval_calibration_metrics, mode=mode)
+            d.update({ f'Val {k}' : v for k, v in test_m.items()})
+            d.update({ f'CF10 {k}' : v for k, v in testcf_m.items()})
 
             if args.cifar10_1:
-                cf10_1_m = test_all(cifar10_1_loader, model, criterion, calibration_metrics=args.eval_calibration_metrics, mode=mode)
+                cf10_1_m = test_all(cifar10_1_loader, model, criterion, calibration_metrics=args.eval_calibration_metrics, fname=get_fname(args, wandb, 'cf10_1', i))
                 d.update({ f'CF10.1 {k}' : v for k, v in cf10_1_m.items()})
 
             if not args.iid and not args.augmix:
-                train_m = test_all(tr_loader, model, criterion, calibration_metrics=args.eval_calibration_metrics, mode=mode)
+                train_m = test_all(tr_loader, model, criterion, calibration_metrics=args.eval_calibration_metrics, fname=get_fname(args, wandb, 'train', i))
                 d.update({ f'Train {k}' : v for k, v in train_m.items()})
 
-                print(f'Batch {i}.\t lr: {lr:.3f}\t Train Loss: {d["Train Loss"]:.4f}\t Train Error: {d["Train Error"]:.3f}\t Test Error: {d["Test Error"]:.3f}')
+                print(f'Batch {i}.\t lr: {lr:.3f}\t Train Loss: {d["Train Loss"]:.4f}\t Train Error: {d["Train Error"]:.3f}\t Val Error: {d["Val Error"]:.3f}')
 
             else:
-                print(f'Batch {i}.\t lr: {lr:.3f}\t Test Error: {d["Test Error"]:.3f}')
+                print(f'Batch {i}.\t lr: {lr:.3f}\t Val Error: {d["Val Error"]:.3f}')
 
 
             logger.log_scalars(d)
@@ -329,6 +336,9 @@ def main():
 
             if args.save_at_k:
                 logger.save_model_step(i, model)
+
+        if args.save_model_step > 0 and i % args.save_model_step == 0:
+            logger.save_model_step(i, model)
 
         if args.save_model_step > 0 and i % args.save_model_step == 0:
             logger.save_model_step(i, model)
@@ -349,12 +359,12 @@ def main():
     logger.save_model(model)
 
     summary = {}
-    summary.update({ f'Final Test {k}' : v for k, v in test_all(te_loader, model, criterion, calibration_metrics=args.eval_calibration_metrics, mode=mode).items()})
-    summary.update({ f'Final Train {k}' : v for k, v in test_all(tr_loader, model, criterion, calibration_metrics=args.eval_calibration_metrics, mode=mode).items()})
-    summary.update({ f'Final CF10 {k}' : v for k, v in test_all(cifar_test, model, criterion, calibration_metrics=args.eval_calibration_metrics, mode=mode).items()})
+    summary.update({ f'Final Val {k}' : v for k, v in test_all(te_loader, model, criterion, calibration_metrics=args.eval_calibration_metrics, fname=get_fname(args, wandb, 'val', n_tot)).items()})
+    summary.update({ f'Final Train {k}' : v for k, v in test_all(tr_loader, model, criterion, calibration_metrics=args.eval_calibration_metrics, fname=get_fname(args, wandb, 'train', n_tot)).items()})
+    summary.update({ f'Final CF10 {k}' : v for k, v in test_all(cifar_test, model, criterion, calibration_metrics=args.eval_calibration_metrics, fname=get_fname(args, wandb, 'cf10_test', n_tot)).items()})
 
     if args.cifar10_1:
-        summary.update({ f'Final CF10.1 {k}' : v for k, v in test_all(cifar10_1_loader, model, criterion, calibration_metrics=args.eval_calibration_metrics, mode=mode).items()})
+        summary.update({ f'Final CF10.1 {k}' : v for k, v in test_all(cifar10_1_loader, model, criterion, calibration_metrics=args.eval_calibration_metrics, fname=get_fname(args, wandb, 'cf10_1', n_tot)).items()})
 
     logger.log_summary(summary)
     logger.flush()
