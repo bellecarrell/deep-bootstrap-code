@@ -158,10 +158,13 @@ def get_loaders():
         return {default_subset: test_loader}
     elif args.eval_dataset.startswith('cifar5m-binary'):
         (X_tr, Y_tr, X_te, Y_te), preproc = get_dataset(args.eval_dataset, test_only=True)
+        tr_set = TransformingTensorDataset(X_tr, Y_tr, transform=preproc)
         val_set = TransformingTensorDataset(X_te, Y_te, transform=preproc)
+        train_loader = torch.utils.data.DataLoader(tr_set, batch_size=256,
+            shuffle=False, num_workers=args.workers, pin_memory=True)
         test_loader = torch.utils.data.DataLoader(val_set, batch_size=256,
             shuffle=False, num_workers=args.workers, pin_memory=True)
-        return {default_subset: test_loader}
+        return {"val": test_loader, "train": train_loader}
 
 def get_step(f):
     final_subdir = pathlib.PurePath(f).parent.name
@@ -175,6 +178,10 @@ def get_run_id():
 
 def get_wandb_name(args):
     return f'{args.arch}-{args.dataset} n={args.nsamps}'
+
+def get_fname(args, wandb, stage, step):
+    os.makedirs(os.path.join(f'{args.datadir}','calibration/',f'{args.proj}'), exist_ok=True)
+    return os.path.join(f'{args.datadir}','calibration/',f'{args.proj}',f'{stage}_{args.dataset}_{wandb.run.id}_{step}.pickle')
 
 def main():
     ## argparsing hacks
@@ -222,7 +229,7 @@ def main():
     steps.sort()
 
     for step in steps:
-        if step < args.resume: #or step % 1024 != 0:
+        if step < args.resume or step % 128 != 0:
             continue
 
         f = f'{args.pretrained}/step{step:06}/model.pt'
@@ -243,17 +250,17 @@ def main():
             test_cf5m = test_all(cf5m_test_loader, model, criterion, half=args.half, calibration_metrics=args.eval_calibration_metrics)
             d.update({f'CF-5m Test {k}' : v for k, v in test_cf5m.items()})
 
-        if args.eval_dataset == 'cifar10c':
+        if args.eval_dataset == 'cifar10c' or args.eval_dataset == 'cifar5m-binary-hard':
             mean_vals = defaultdict(list)
 
         d.update({'batch_num' : step})
         fname = f'{args.datadir}calibration/{wandb.run.id}_{step}.pickle'
         for name, test_loader in test_loaders.items():
-            results = test_all(test_loader, model, criterion, half=args.half, calibration_metrics=args.eval_calibration_metrics, fname=fname)
+            results = test_all(test_loader, model, criterion, half=args.half, calibration_metrics=args.eval_calibration_metrics, fname=get_fname(args, wandb, name, step))
             for k, v in results.items():
                 print(f'{dataset_logs[args.eval_dataset]} {k} : {v}')
 
-            if args.eval_dataset == 'cifar10c':
+            if args.eval_dataset == 'cifar10c' or args.eval_dataset == 'cifar5m-binary-hard':
                 for k, v in results.items():
                     d.update({ f'{dataset_logs[args.eval_dataset]} {name} {k}' : v})
 
