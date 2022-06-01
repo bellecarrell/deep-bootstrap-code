@@ -91,6 +91,15 @@ class VanillaLogger():
             path = f'{self.expanse_modeldir}/step{step:06}/model.pt'
             _save_model(model, path)
 
+    def save_model_step_fixed_error(self, step, model, error):
+        if self.log_remote:
+            path = f'{self.gcs_modeldir}/error_{error}/step{step:06}/model.pt'
+            gsave_model(model, path)
+        else:
+            os.makedirs(f'{self.expanse_modeldir}/error_{error}/step{step:06}/', exist_ok=True)
+            path = f'{self.expanse_modeldir}/error_{error}/step{step:06}/model.pt'
+            _save_model(model, path)
+
     def log_root(self, D : dict):
         for k, v in D.items():
             self.save(v, k)

@@ -28,7 +28,7 @@ from common.datasets import load_cifar, load_cifar_binary, TransformingTensorDat
 from common.datasets import load_cifar550, load_svhn_all, load_svhn, load_cifar5m, load_cifar100, load_pacs
 import common.datasets.augmentations as augmentations
 import common.models32 as models
-from .utils import get_model32, get_optimizer, get_scheduler, make_loader, make_loader_cifar10_1, get_wandb_name, get_dataset, add_noise, get_data_aug, cuda_transfer, recycle, mse_loss, test_all, set_seeds, seed_worker
+from .utils import get_model32, get_optimizer, get_scheduler, make_loader, make_loader_cifar10_1, get_wandb_name, get_dataset, add_noise, get_data_aug, cuda_transfer, recycle, mse_loss, test_all, set_seeds, seed_worker, is_at_fixed_error
 
 from common.logging import VanillaLogger
 
@@ -40,6 +40,7 @@ parser.add_argument('--nsamps', default=50000, type=int, help='num. train sample
 parser.add_argument('--batchsize', default=128, type=int)
 parser.add_argument('--k', default=64, type=int, help="log every k batches", dest='k')
 parser.add_argument('--save-at-k', default=False, action='store_true', help='save model at every k step (and more often in early stages)')
+parser.add_argument('--save_at_err', default=False, action='store_true', help='save model at every k step (and more often in early stages)')
 parser.add_argument('--iid', default=False, action='store_true', help='simulate infinite samples (fresh samples each batch)')
 parser.add_argument('--save_model_step', default=-1, type=int, help='step frequency for saving intermediate models')
 
@@ -336,6 +337,9 @@ def main():
 
             if args.save_at_k:
                 logger.save_model_step(i, model)
+
+            if args.save_at_err and is_at_fixed_error(d) != -1:
+                logger.save_model_step_fixed_error(i, model, is_at_fixed_error(d))
 
         if args.save_model_step > 0 and i % args.save_model_step == 0:
             logger.save_model_step(i, model)
