@@ -40,7 +40,7 @@ parser.add_argument('--nsamps', default=50000, type=int, help='num. train sample
 parser.add_argument('--batchsize', default=128, type=int)
 parser.add_argument('--k', default=64, type=int, help="log every k batches", dest='k')
 parser.add_argument('--save-at-k', default=False, action='store_true', help='save model at every k step (and more often in early stages)')
-parser.add_argument('--save_at_err', default=False, action='store_true', help='save model at every k step (and more often in early stages)')
+parser.add_argument('--save_at_error', default=False, action='store_true', help='save model at every k step (and more often in early stages)')
 parser.add_argument('--iid', default=False, action='store_true', help='simulate infinite samples (fresh samples each batch)')
 parser.add_argument('--save_model_step', default=-1, type=int, help='step frequency for saving intermediate models')
 
@@ -305,8 +305,9 @@ def main():
             # (i < 1024 and i % 4 == 0) or \
             # (i < 2048 and i % 8 == 0))):
             # for ViT recommend (when not using args.fast) this:
-            (i < 512 and i % 4 == 0) or \
-            (i < 1024 and i % 8 == 0))):
+            (i < 128 and i % 4 == 0) or \
+            (i < 256 and i % 16 == 0) or \
+            (i < 1024 and i % 64 == 0))):
             ''' Every k batches (and more frequently in early stages): log train/test errors. '''
 
             d = {'batch_num': i,
@@ -331,15 +332,18 @@ def main():
             else:
                 print(f'Batch {i}.\t lr: {lr:.3f}\t Val Error: {d["Val Error"]:.3f}')
 
-
-            logger.log_scalars(d)
-            logger.flush()
-
             if args.save_at_k:
                 logger.save_model_step(i, model)
 
-            if args.save_at_err and is_at_fixed_error(d) != -1:
+            if args.save_at_error and is_at_fixed_error(d) != -1:
+                d.update({ f'Fixed Error Val {k}' : v for k, v in test_m.items()})
                 logger.save_model_step_fixed_error(i, model, is_at_fixed_error(d))
+                if args.iid:
+                    train_m = test_all(tr_loader, model, criterion, calibration_metrics=args.eval_calibration_metrics, fname=get_fname(args, wandb, 'train', i))
+                    d.update({ f'Train {k}' : v for k, v in train_m.items()})
+
+            logger.log_scalars(d)
+            logger.flush()
 
         if args.save_model_step > 0 and i % args.save_model_step == 0:
             logger.save_model_step(i, model)
@@ -362,16 +366,16 @@ def main():
     ## Final logging
     logger.save_model(model)
 
-    summary = {}
-    summary.update({ f'Final Val {k}' : v for k, v in test_all(te_loader, model, criterion, calibration_metrics=args.eval_calibration_metrics, fname=get_fname(args, wandb, 'val', n_tot)).items()})
-    summary.update({ f'Final Train {k}' : v for k, v in test_all(tr_loader, model, criterion, calibration_metrics=args.eval_calibration_metrics, fname=get_fname(args, wandb, 'train', n_tot)).items()})
-    summary.update({ f'Final CF10 {k}' : v for k, v in test_all(cifar_test, model, criterion, calibration_metrics=args.eval_calibration_metrics, fname=get_fname(args, wandb, 'cf10_test', n_tot)).items()})
+    # summary = {}
+    # summary.update({ f'Final Val {k}' : v for k, v in test_all(te_loader, model, criterion, calibration_metrics=args.eval_calibration_metrics, fname=get_fname(args, wandb, 'val', n_tot)).items()})
+    # summary.update({ f'Final Train {k}' : v for k, v in test_all(tr_loader, model, criterion, calibration_metrics=args.eval_calibration_metrics, fname=get_fname(args, wandb, 'train', n_tot)).items()})
+    # summary.update({ f'Final CF10 {k}' : v for k, v in test_all(cifar_test, model, criterion, calibration_metrics=args.eval_calibration_metrics, fname=get_fname(args, wandb, 'cf10_test', n_tot)).items()})
 
-    if args.cifar10_1:
-        summary.update({ f'Final CF10.1 {k}' : v for k, v in test_all(cifar10_1_loader, model, criterion, calibration_metrics=args.eval_calibration_metrics, fname=get_fname(args, wandb, 'cf10_1', n_tot)).items()})
+    # if args.cifar10_1:
+    #     summary.update({ f'Final CF10.1 {k}' : v for k, v in test_all(cifar10_1_loader, model, criterion, calibration_metrics=args.eval_calibration_metrics, fname=get_fname(args, wandb, 'cf10_1', n_tot)).items()})
 
-    logger.log_summary(summary)
-    logger.flush()
+    # logger.log_scalars(summary)
+    # logger.flush()
 
 
 if __name__ == '__main__':
