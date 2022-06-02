@@ -418,7 +418,7 @@ def seed_worker(worker_id):
     random.seed(worker_seed)
 
 def is_at_fixed_error(d):
-    for error in list(range(0,65,5)):   
+    for error in list(range(0,105,5)):   
         if ((error/100)-0.005) <= d['Val Error'] and d['Val Error'] <= ((error/100)+0.005):
             return error
     return -1
