@@ -305,9 +305,14 @@ def main():
             # (i < 1024 and i % 4 == 0) or \
             # (i < 2048 and i % 8 == 0))):
             # for ViT recommend (when not using args.fast) this:
+            # (i < 128 and i % 4 == 0) or \
+            # (i < 256 and i % 16 == 0) or \
+            # (i < 1024 and i % 32 == 0))):
             (i < 128 and i % 4 == 0) or \
-            (i < 256 and i % 16 == 0) or \
-            (i < 1024 and i % 64 == 0))):
+            (i < 256 and i % 8 == 0) or \
+            (i < 512 and i % 16 == 0) or \
+            (i < 1024 and i % 32 == 0))):
+            
             ''' Every k batches (and more frequently in early stages): log train/test errors. '''
 
             d = {'batch_num': i,
@@ -335,12 +340,14 @@ def main():
             if args.save_at_k:
                 logger.save_model_step(i, model)
 
-            if args.save_at_error and is_at_fixed_error(d) != -1:
+            if args.iid and i % 256 == 0:
+                train_m = test_all(tr_loader, model, criterion, calibration_metrics=args.eval_calibration_metrics, fname=get_fname(args, wandb, 'train', i))
+                d.update({ f'Train {k}' : v for k, v in train_m.items()})
+
+            if args.save_at_error and is_at_fixed_error(d) != -1 or i == 0:
                 d.update({ f'Fixed Error Val {k}' : v for k, v in test_m.items()})
                 logger.save_model_step_fixed_error(i, model, is_at_fixed_error(d))
-                if args.iid:
-                    train_m = test_all(tr_loader, model, criterion, calibration_metrics=args.eval_calibration_metrics, fname=get_fname(args, wandb, 'train', i))
-                    d.update({ f'Train {k}' : v for k, v in train_m.items()})
+
 
             logger.log_scalars(d)
             logger.flush()
