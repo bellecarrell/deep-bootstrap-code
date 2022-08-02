@@ -29,6 +29,7 @@ from common.datasets import load_cifar550, load_svhn_all, load_svhn, load_cifar5
 import common.datasets.augmentations as augmentations
 import common.models32 as models
 from .utils import get_model32, get_optimizer, get_scheduler, make_loader, make_loader_cifar10_1, get_wandb_name, get_dataset, add_noise, get_data_aug, cuda_transfer, recycle, mse_loss, test_all, set_seeds, seed_worker, is_at_fixed_error
+from inftrain.temperature_scaling import ModelWithTemperature
 
 from common.logging import VanillaLogger
 
@@ -41,6 +42,7 @@ parser.add_argument('--batchsize', default=128, type=int)
 parser.add_argument('--k', default=64, type=int, help="log every k batches", dest='k')
 parser.add_argument('--save-at-k', default=False, action='store_true', help='save model at every k step (and more often in early stages)')
 parser.add_argument('--save_at_error', default=False, action='store_true', help='save model at every k step (and more often in early stages)')
+parser.add_argument('--temp_scaling', default=False, action='store_true', help='temperature scaling')
 parser.add_argument('--iid', default=False, action='store_true', help='simulate infinite samples (fresh samples each batch)')
 parser.add_argument('--save_model_step', default=-1, type=int, help='step frequency for saving intermediate models')
 
@@ -225,6 +227,13 @@ def main():
     if args.cifar10_1:
         cifar10_1_loader = make_loader_cifar10_1(args)
 
+    if args.temp_scaling:
+        dataset = args.dataset + "-val"
+        (X_tr, Y_tr, X_te, Y_te), preproc = get_dataset(dataset)
+        val_set = TransformingTensorDataset(X_te, Y_te, transform=preproc)
+        val_loader = torch.utils.data.DataLoader(val_set, batch_size=256,
+            shuffle=False, num_workers=args.workers, pin_memory=True, worker_init_fn=worker_init_fn)
+
     print('Done loading.')
 
 
@@ -324,6 +333,13 @@ def main():
             d.update({ f'Val {k}' : v for k, v in test_m.items()})
             d.update({ f'CF10 {k}' : v for k, v in testcf_m.items()})
 
+            if args.temp_scaling:
+                scaled_model = ModelWithTemperature(model)
+                scaled_model.set_temperature(val_loader)
+                test_m = test_all(te_loader, scaled_model, criterion, calibration_metrics=args.eval_calibration_metrics, fname=get_fname(args, wandb, 'val', i))
+                d.update({ f'Temp-scaled Val {k}' : v for k, v in test_m.items()})
+
+
             if args.cifar10_1:
                 cf10_1_m = test_all(cifar10_1_loader, model, criterion, calibration_metrics=args.eval_calibration_metrics, fname=get_fname(args, wandb, 'cf10_1', i))
                 d.update({ f'CF10.1 {k}' : v for k, v in cf10_1_m.items()})
@@ -331,6 +347,12 @@ def main():
             if not args.iid and not args.augmix:
                 train_m = test_all(tr_loader, model, criterion, calibration_metrics=args.eval_calibration_metrics, fname=get_fname(args, wandb, 'train', i))
                 d.update({ f'Train {k}' : v for k, v in train_m.items()})
+
+                if args.temp_scaling:
+                    scaled_model = ModelWithTemperature(model)
+                    scaled_model.set_temperature(val_loader)
+                    test_m = test_all(tr_loader, scaled_model, criterion, calibration_metrics=args.eval_calibration_metrics, fname=get_fname(args, wandb, 'val', i))
+                    d.update({ f'Temp-scaled Train {k}' : v for k, v in test_m.items()})
 
                 print(f'Batch {i}.\t lr: {lr:.3f}\t Train Loss: {d["Train Loss"]:.4f}\t Train Error: {d["Train Error"]:.3f}\t Val Error: {d["Val Error"]:.3f}')
 
@@ -373,16 +395,22 @@ def main():
     ## Final logging
     logger.save_model(model)
 
-    # summary = {}
-    # summary.update({ f'Final Val {k}' : v for k, v in test_all(te_loader, model, criterion, calibration_metrics=args.eval_calibration_metrics, fname=get_fname(args, wandb, 'val', n_tot)).items()})
-    # summary.update({ f'Final Train {k}' : v for k, v in test_all(tr_loader, model, criterion, calibration_metrics=args.eval_calibration_metrics, fname=get_fname(args, wandb, 'train', n_tot)).items()})
-    # summary.update({ f'Final CF10 {k}' : v for k, v in test_all(cifar_test, model, criterion, calibration_metrics=args.eval_calibration_metrics, fname=get_fname(args, wandb, 'cf10_test', n_tot)).items()})
+    summary = {}
+    summary.update({ f'Final Val {k}' : v for k, v in test_all(te_loader, model, criterion, calibration_metrics=args.eval_calibration_metrics, fname=get_fname(args, wandb, 'val', n_tot)).items()})
+    summary.update({ f'Final Train {k}' : v for k, v in test_all(tr_loader, model, criterion, calibration_metrics=args.eval_calibration_metrics, fname=get_fname(args, wandb, 'train', n_tot)).items()})
+    summary.update({ f'Final CF10 {k}' : v for k, v in test_all(cifar_test, model, criterion, calibration_metrics=args.eval_calibration_metrics, fname=get_fname(args, wandb, 'cf10_test', n_tot)).items()})
 
-    # if args.cifar10_1:
-    #     summary.update({ f'Final CF10.1 {k}' : v for k, v in test_all(cifar10_1_loader, model, criterion, calibration_metrics=args.eval_calibration_metrics, fname=get_fname(args, wandb, 'cf10_1', n_tot)).items()})
+    if args.cifar10_1:
+        summary.update({ f'Final CF10.1 {k}' : v for k, v in test_all(cifar10_1_loader, model, criterion, calibration_metrics=args.eval_calibration_metrics, fname=get_fname(args, wandb, 'cf10_1', n_tot)).items()})
 
-    # logger.log_scalars(summary)
-    # logger.flush()
+    if args.temp_scaling:
+        scaled_model = ModelWithTemperature(model)
+        scaled_model.set_temperature(te_loader)
+        summary.update({ f'Final Temp-scaled Val {k}' : v for k, v in test_all(te_loader, scaled_model, criterion, calibration_metrics=args.eval_calibration_metrics, fname=get_fname(args, wandb, 'val', n_tot)).items()})
+        summary.update({ f'Final Temp-scaled Train {k}' : v for k, v in test_all(tr_loader, scaled_model, criterion, calibration_metrics=args.eval_calibration_metrics, fname=get_fname(args, wandb, 'train', n_tot)).items()})
+
+    logger.log_scalars(summary)
+    logger.flush()
 
 
 if __name__ == '__main__':

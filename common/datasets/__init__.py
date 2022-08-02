@@ -160,13 +160,14 @@ def load_cifar5m_test():
     Y_te = torch.tensor(z['Y'][:nte]).long()
     return X_te, Y_te
 
-def load_cifar5m():
+def load_cifar5m(val=False):
     '''
         Returns 5million synthetic samples.
         warning: returns as numpy array of unit8s, not torch tensors.
     '''
 
     nte = 50000 # num. of test samples to use (max 1e6)
+    val_start = 500000
     print('Downloading CIFAR 5mil...')
     #local_dir = download_dir('gs://gresearch/cifar5m') # download all 6 dataset files
     local_dir = '/expanse/lustre/projects/csd697/nmallina/data/cifar-5m'
@@ -185,18 +186,22 @@ def load_cifar5m():
     z = np.load(pjoin(local_dir, 'part5.npz')) # use the 6th million for test.
     print(f'Loaded part 6/6')
 
-    X_te = z['X'][:nte]
-    Y_te = torch.tensor(z['Y'][:nte]).long()
+    if val:
+        X_te = z['X'][val_start:val_start+nte]
+        Y_te = torch.tensor(z['Y'][val_start:val_start+nte]).long()
+    else: 
+        X_te = z['X'][:nte]
+        Y_te = torch.tensor(z['Y'][:nte]).long()
 
     return X_tr, Y_tr, X_te, Y_te
 
-def load_cifar5m_binary(difficulty='hard'):
+def load_cifar5m_binary(difficulty='hard', val=False):
     '''
         Returns binary classification subset of cifar5m, either car/dog (easy) or car/truck (hard)
         warning: returns as numpy array of unit8s, not torch tensors.
     '''
 
-    X_tr, Y_tr, X_te, Y_te = load_cifar5m()
+    X_tr, Y_tr, X_te, Y_te = load_cifar5m(val)
     class_1 = 1
     if difficulty == 'easy':
         class_2 = 5

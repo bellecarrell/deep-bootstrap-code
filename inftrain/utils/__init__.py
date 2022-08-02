@@ -314,6 +314,8 @@ def get_dataset(dataset, test_only=False):
         return load_cifar5m_binary(difficulty='easy'), uint_transform
     if dataset == 'cifar5m-binary-hard':
         return load_cifar5m_binary(difficulty='hard'), uint_transform
+    if dataset == 'cifar5m-binary-hard-val':
+        return load_cifar5m_binary(difficulty='hard',val=True), uint_transform
 
 def add_noise(Y, p: float):
     ''' Adds noise to Y, s.t. the label is wrong w.p. p '''
